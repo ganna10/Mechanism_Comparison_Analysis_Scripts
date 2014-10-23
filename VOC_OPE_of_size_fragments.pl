@@ -16,8 +16,8 @@ my $NTIME = $mecca->time->nelem;
 
 #my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
 #my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @runs = qw( MCM_3.2_tagged RACM_tagging );
-my @mechanisms = qw( MCM3.2 RACM );
+my @runs = qw( CBM4_tagging );
+my @mechanisms = qw( CBM-IV );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
@@ -222,39 +222,26 @@ sub get_data {
         } 
     }
 
-    my $dt = $mecca->dt->at(0); #model time step
-    my $parent_emissions;
-    if ($mechanism =~ /CB/) {
-        if ($VOC =~ /NC5H12/) {
-            my $name = "PAR_NC5H12";
-            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-            $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
-        } elsif ($VOC =~ /TOLUENE/) {
-            my $name = "TOL_TOLUENE";
-            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-            $parent_emissions += $parent_source->sum * $dt ; 
-        } else {
-            print "No emissions data for $VOC\n";
-        }
-    } else {
-        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
-        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-    }
-    
-    #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
-
+    my $dt = $mecca->dt->at(0);
     my $n_per_day = 43200 / $dt;
     my $n_days = int ($NTIME / $n_per_day);
     my %daily_OPEs;
     foreach my $carbon (sort keys %production_rates) {
         next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
+
+        my $reshaped_prod = $production_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+        my $integ_prod = $reshaped_prod->sumover;
+        my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+        my $integ_cons = $reshaped_cons->sumover;
+        print "production => $integ_prod\n";
+        print "consumption => $integ_cons\n";
+
         my $original_consumption_rates = $consumption_rates{$carbon};
         $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
         my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
         my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
-        my $daytime_OPE = $reshaped_OPE->sumover;
-        $daily_OPEs{$carbon} = $daytime_OPE;
+        my $integrated_OPE = $reshaped_OPE->sumover;
+        $daily_OPEs{$carbon} = $integrated_OPE;
     }
     return \%daily_OPEs;
 }
