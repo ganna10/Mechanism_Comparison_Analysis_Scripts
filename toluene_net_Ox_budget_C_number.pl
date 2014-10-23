@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# pentane Ox net Ox production budget for each mechanism
+# toluene Ox net Ox production budget for each mechanism
 # Version 0: Jane Coates 23/10/2014
 
 use strict;
@@ -32,7 +32,7 @@ foreach my $run (@runs) {
     my $carbons = get_carbons($run, $carbon_file);
     $families{"Ox_$mechanisms[$index]"} = [ qw( O3 NO2 HO2NO2 NO3 N2O5 O1D O ), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
-    my @VOCs = qw( Pentane );
+    my @VOCs = qw( Toluene );
     foreach my $VOC (@VOCs) {
         my $mech_species = get_model_name($VOC, $run);
         $plot_data{$mechanisms[$index]} = get_data($kpp, $mecca, $mechanisms[$index], $mech_species, $carbons);
@@ -53,9 +53,10 @@ $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", 
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `);
 
+#plot = plot + scale_y_continuous(limits = c(0, 5e-3), breaks = seq(0, 5e-3, 1e-3), labels = scientific_10) ;
 $R->run(q` plotting = function (data, mechanism) {  plot = ggplot(data, aes(x = Time, y = net.rate, fill = C.number)) ;
-                                                    plot = plot + geom_bar(stat = "identity") ; 
-                                                    plot = plot + scale_y_continuous(limits = c(0, 4.5e8), breaks = seq(0, 4.5e8, 1e8), labels = scientific_10) ;
+                                                    plot = plot + geom_bar(data = subset(data, net.rate > 0), stat = "identity") ; 
+                                                    plot = plot + geom_bar(data = subset(data, net.rate < 0), stat = "identity") ; 
                                                     plot = plot + theme_bw() ;
                                                     plot = plot + ggtitle(mechanism) ;
                                                     plot = plot + theme(plot.title = element_text(size = 140, face = "bold")) ;
@@ -103,11 +104,11 @@ foreach my $run (sort keys %plot_data) {
             q` plot = plotting(pre, Mechanism) `,
             q` Plots = c(Plots, list(plot)) `,
     );
-}
 #my $p = $R->run(q` print(pre) `);
 #print "$p\n"; 
+}
 
-$R->run(q` CairoPDF(file = "pentane_net_Ox_daytime_budget.pdf", width = 141, height = 200) `,
+$R->run(q` CairoPDF(file = "toluene_net_Ox_daytime_budget.pdf", width = 141, height = 200) `,
         q` multiplot = grid.arrange(arrangeGrob(Plots[[1]] ,
                                                 Plots[[2]] ,
                                                 Plots[[3]] ,
@@ -243,6 +244,26 @@ sub get_data {
         $consumption_rates{$carbon} = $integrated;
         $net_rates{$carbon} = $production_rates{$carbon} + $consumption_rates{$carbon};
     }
+
+    my $parent_emissions;
+    if ($mechanism =~ /CB/) {
+        if ($VOC =~ /NC5H12/) {
+            my $name = "PAR_NC5H12";
+            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+            $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
+        } elsif ($VOC =~ /TOLUENE/) {
+            my $name = "TOL_TOLUENE";
+            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+            $parent_emissions += $parent_source->sum * $dt ; 
+        } else {
+            print "No emissions data for $VOC\n";
+        }
+    } else {
+        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
+        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
+    }
+    
+    $net_rates{$_} = $net_rates{$_} * $dt / $parent_emissions foreach (sort keys %net_rates);#normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     #print "Net: $_ => $net_rates{$_}\n" foreach sort keys %net_rates;
     return \%net_rates;
 }
