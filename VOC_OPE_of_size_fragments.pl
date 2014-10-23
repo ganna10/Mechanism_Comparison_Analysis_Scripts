@@ -16,8 +16,8 @@ my $NTIME = $mecca->time->nelem;
 
 #my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
 #my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @runs = qw( CBM4_tagging );
-my @mechanisms = qw( CBM-IV );
+my @runs = qw( MCM_3.2_tagged RACM_tagging );
+my @mechanisms = qw( MCM3.2 RACM );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
@@ -93,11 +93,11 @@ $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scient
 
 $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
         q` plot = plot + geom_bar(stat = "identity") `, 
-        q` plot = plot + facet_grid(Time ~ VOC, scales = "free_x") `,
+        q` plot = plot + facet_grid(Time ~ VOC) `,
         q` plot = plot + coord_flip() `,
-        q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules (Ox) / (molecules (VOC) molecules (HNO3))) ", s^-1)))) `,
-        q` plot = plot + scale_y_continuous(labels = scientific_10) `,
+        #q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
+        #q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules ", (VOC)^-1, cm^3, "s) x ", 10^-9)))) `,
+        #q` plot = plot + scale_y_continuous(labels = scientific_10) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(size = 160, face = "bold")) `,
@@ -117,7 +117,7 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
 );
 
 $R->run(q` CairoPDF(file = "OPE_fragments.pdf", width = 141, height = 200) `,
-    #q` print(plot) `,
+        q` print(plot) `,
         q` dev.off() `,
 );
 
@@ -199,7 +199,7 @@ sub get_data {
                 } 
             } 
         }
-
+        
         for (0..$#$consumers) {
             my $reaction = $consumers->[$_];
             my $reaction_number = $kpp->reaction_number($reaction);
@@ -213,46 +213,13 @@ sub get_data {
                     next if ($_ =~ /XO2/ and $species =~ /RADM2|RACM|CB/);
                     my ($lookup, $tag) = split /_/, $_;
                     if (defined $carbons{$lookup}) {
-                        print "$lookup => $carbons{$lookup}\n";
                         $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
-                    } elsif ($lookup =~ /\bCO\b/) {
-                        $consumption_rates{"C1"} += $rate(1:$NTIME-2);
                     } else {
                         print "Nothing found for $lookup\n";
                     }
-                } elsif ($_ =~ /HC5\b/) {
-                    my $lookup = "HC5";
-                    $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
                 }
             }
         } 
-
-#        if ($species =~ /Ox/ and $mechanism =~ /RADM2|RACM|CB/) {#operator allocation for those mechanisms that use it: RADM2, RACM, RACM2, CBM4, CB05 -> XO2
-#            my $operator = "XO2_" . $VOC;
-#            my $op_consumers = $kpp->consuming($operator);
-#            my $op_consumer_yields = $kpp->effect_on($operator, $op_consumers); 
-#            die "No consumers found for $operator\n" if (@$op_consumers == 0);
-#            
-#            for (0..$#$op_consumers) { #get rates for all consuming reactions
-#                my $reaction = $op_consumers->[$_];
-#                my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-#                my $reaction_number = $kpp->reaction_number($reaction);
-#                my $rate = $op_consumer_yields->[$_] * $mecca->rate($reaction_number); 
-#                next if ($rate->sum == 0); # do not include reactions that do not occur 
-#                my ($reactants) = $kpp->reactants($reaction);
-#                foreach (@$reactants) {
-#                    if ($_ =~ /_/) {
-#                        my ($lookup, $rest) = split '_', $_;
-#                        if (defined $carbons{$lookup}) {
-#                            print "$lookup => $carbons{$lookup}\n";
-#                            $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
-#                        } else {
-#                            print "$mechanism => nothing found for $lookup\n";
-#                        }
-#                    }
-#                } 
-#            } 
-#        }
     }
 
     my $dt = $mecca->dt->at(0); #model time step
@@ -275,17 +242,16 @@ sub get_data {
     }
     
     #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    foreach my $Cs (sort keys %production_rates) {
-        next if ($Cs eq "HNO3");
-        $production_rates{$Cs} /= $parent_emissions;
-    }
+    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
 
     my $n_per_day = 43200 / $dt;
     my $n_days = int ($NTIME / $n_per_day);
     my %daily_OPEs;
     foreach my $carbon (sort keys %production_rates) {
-        next if ($carbon eq "HNO3");
-        my $OPE = $production_rates{$carbon} / $production_rates{"HNO3"} ;
+        next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
+        my $original_consumption_rates = $consumption_rates{$carbon};
+        $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
+        my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
         my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
         my $daytime_OPE = $reshaped_OPE->sumover;
         $daily_OPEs{$carbon} = $daytime_OPE;
