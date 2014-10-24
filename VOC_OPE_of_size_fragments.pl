@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Calculate pentane and toluene OPE of each mechanism's model run per size bin loss
 # Version 0: Jane Coates 21/10/2014
+# Version 1: Jane Coates 24/10/2014 Changing faceting and bar plot is dodged
 
 use strict;
 use diagnostics;
@@ -14,10 +15,10 @@ my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
 my $NTIME = $mecca->time->nelem;
 
-#my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-#my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @runs = qw( CBM4_tagging );
-my @mechanisms = qw( CBM-IV );
+my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+#my @runs = qw( CBM4_tagging );
+#my @mechanisms = qw( CBM-IV );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
@@ -32,7 +33,7 @@ foreach my $run (@runs) {
     my $carbons = get_carbons($run, $carbon_file);
     $families{"Ox_$mechanisms[$index]"} = [ qw( O3 NO2 HO2NO2 NO3 N2O5 O1D O ), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
-    my @VOCs = qw( Pentane );
+    my @VOCs = qw( Pentane Toluene );
     foreach my $VOC (@VOCs) {
         my $mech_species = get_model_name($VOC, $run);
         $plot_data{$mechanisms[$index]}{$VOC} = get_data($kpp, $mecca, $mechanisms[$index], $mech_species, $carbons);
@@ -48,11 +49,12 @@ $R->run(q` library(ggplot2) `,
         q` library(scales) `,
 );
 
-my @days = ("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7");
+my @days = ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7");
 $R->set('Time', [@days]);
 $R->run(q` data = data.frame() `);
 foreach my $run (sort keys %plot_data) {
     foreach my $VOC (sort keys %{$plot_data{$run}}) {
+        #next if ($run eq 'RACM' and $VOC eq 'Toluene');
         $R->run(q` pre = data.frame(Time) `);
         foreach my $carbon (sort keys %{$plot_data{$run}{$VOC}} ) {
             $R->set('C.number', $carbon);
@@ -85,38 +87,40 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print "$p\n"; 
 
-$R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
-$R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-#$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
+$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
+$R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
+$R->run(q` my.colours = c(  "CB05" = "#6db875", "CBM-IV" = "#0c3f78", "CRIv2" = "#b569b3", "MCMv3.1" = "#2b9eb3", "MCMv3.2" = "#000000", "MOZART-4" = "#ef6638", "RACM" = "#0e5628", "RACM2" = "#f9c500", "RADM2" = "#6c254f") `,);
+$R->run(q` my.names = c(  "CB05" = "CB05 ", "CBM-IV" = "CBM-IV ", "CRIv2" = "CRI v2 ", "MCMv3.1" = "MCM v3.1 ", "MCMv3.2" = "MCM v3.2 ", "MOZART-4" = "MOZART-4 ", "RACM" = "RACM ", "RACM2" = "RACM2 ", "RADM2" = "RADM2 ") `,);
 $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `);
 
-$R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
-        q` plot = plot + geom_bar(stat = "identity") `, 
-        q` plot = plot + facet_grid(Time ~ VOC) `,
-        q` plot = plot + coord_flip() `,
-        #q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        #q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules ", (VOC)^-1, cm^3, "s) x ", 10^-9)))) `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = OPE, fill = Mechanism)) `,
+        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `, 
+        q` plot = plot + facet_grid(C.number ~ VOC) `,
+        #q` plot = plot + coord_flip() `,
+        q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules ", (VOC)^-1, cm^3, "s)")))) `,
         #q` plot = plot + scale_y_continuous(labels = scientific_10) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
-        q` plot = plot + theme(strip.text.x = element_text(size = 160, face = "bold")) `,
-        q` plot = plot + theme(strip.text.y = element_text(size = 160, face = "bold", angle = 0)) `,
+        q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
+        q` plot = plot + theme(strip.text.y = element_text(size = 200, face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title.x = element_text(size = 160)) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
+        q` plot = plot + theme(axis.title.x = element_text(size = 200)) `,
+        q` plot = plot + theme(axis.text.y = element_text(size = 160)) `,
+        q` plot = plot + theme(axis.text.x = element_text(size = 160)) `,
         q` plot = plot + theme(panel.grid.major = element_blank()) `,
         q` plot = plot + theme(panel.grid.minor = element_blank()) `,
-        q` plot = plot + theme(legend.position = "bottom") `,
+        q` plot = plot + theme(legend.position = c(0.10, 0.03)) `,
+        q` plot = plot + theme(legend.justification = c(0.10, 0.03)) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
+        q` plot = plot + theme(legend.key.size = unit(10, "cm")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
+        q` plot = plot + theme(legend.text = element_text(size = 170)) `,
+        q` plot = plot + guides(fill = guide_legend(direction = "horizontal", nrow = 2)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "OPE_fragments.pdf", width = 141, height = 200) `,
+$R->run(q` CairoPDF(file = "OPE_fragments.pdf", width = 200, height = 141) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -233,14 +237,15 @@ sub get_data {
         my $integ_prod = $reshaped_prod->sumover;
         my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
         my $integ_cons = $reshaped_cons->sumover;
-        print "production => $integ_prod\n";
-        print "consumption => $integ_cons\n";
+        #print "production => $integ_prod\n";
+        #print "consumption => $integ_cons\n";
 
         my $original_consumption_rates = $consumption_rates{$carbon};
         $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
         my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
         my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
         my $integrated_OPE = $reshaped_OPE->sumover;
+        $integrated_OPE = $integrated_OPE(0:13:2); #choose day time period
         $daily_OPEs{$carbon} = $integrated_OPE;
     }
     return \%daily_OPEs;
