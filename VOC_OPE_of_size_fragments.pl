@@ -2,6 +2,7 @@
 # Calculate pentane and toluene OPE of each mechanism's model run per size bin loss
 # Version 0: Jane Coates 21/10/2014
 # Version 1: Jane Coates 24/10/2014 Changing faceting and bar plot is dodged
+# Version 2: Jane Coates 29/10/2014 Going back to original faceting type
 
 use strict;
 use diagnostics;
@@ -89,38 +90,36 @@ foreach my $run (sort keys %plot_data) {
 
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 $R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
-$R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
-$R->run(q` my.colours = c(  "CB05" = "#6db875", "CBM-IV" = "#0c3f78", "CRIv2" = "#b569b3", "MCMv3.1" = "#2b9eb3", "MCMv3.2" = "#000000", "MOZART-4" = "#ef6638", "RACM" = "#0e5628", "RACM2" = "#f9c500", "RADM2" = "#6c254f") `,);
-$R->run(q` my.names = c(  "CB05" = "CB05 ", "CBM-IV" = "CBM-IV ", "CRIv2" = "CRI v2 ", "MCMv3.1" = "MCM v3.1 ", "MCMv3.2" = "MCM v3.2 ", "MOZART-4" = "MOZART-4 ", "RACM" = "RACM ", "RACM2" = "RACM2 ", "RADM2" = "RADM2 ") `,);
+$R->run(q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `);
+$R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
+$R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `);
 
-$R->run(q` plot = ggplot(data, aes(x = Time, y = OPE, fill = Mechanism)) `,
-        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `, 
-        q` plot = plot + facet_grid(C.number ~ VOC) `,
-        #q` plot = plot + coord_flip() `,
-        q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules ", (VOC)^-1, cm^3, "s)")))) `,
-        #q` plot = plot + scale_y_continuous(labels = scientific_10) `,
+$R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `, 
+        q` plot = plot + geom_bar(data = subset(data, OPE < 0), stat = "identity") `,
+        q` plot = plot + geom_bar(data = subset(data, OPE > 0), stat = "identity") `,
+        q` plot = plot + facet_grid( Time ~ VOC ) `,
+        q` plot = plot + coord_flip() `,
+        q` plot = plot + ylab("\nOx Production Efficiency normalised by VOC emissions\n") `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
         q` plot = plot + theme(strip.text.y = element_text(size = 200, face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title.x = element_text(size = 200)) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 160)) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 160)) `,
+        q` plot = plot + theme(axis.title.x = element_text(size = 200, face = "bold")) `,
+        q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
+        q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
         q` plot = plot + theme(panel.grid.major = element_blank()) `,
         q` plot = plot + theme(panel.grid.minor = element_blank()) `,
-        q` plot = plot + theme(legend.position = c(0.10, 0.03)) `,
-        q` plot = plot + theme(legend.justification = c(0.10, 0.03)) `,
+        q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.key.size = unit(10, "cm")) `,
+        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(legend.text = element_text(size = 170)) `,
-        q` plot = plot + guides(fill = guide_legend(direction = "horizontal", nrow = 2)) `,
+        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "OPE_fragments.pdf", width = 200, height = 141) `,
+$R->run(q` CairoPDF(file = "OPE_fragments.pdf", width = 141, height = 200) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -227,6 +226,24 @@ sub get_data {
     }
 
     my $dt = $mecca->dt->at(0);
+    my $parent_emissions;
+    if ($mechanism =~ /CB/ and $VOC eq "NC5H12") {
+        my $name = "PAR_NC5H12";
+        my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+        $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
+    } elsif ($mechanism =~ /CB/ and $VOC eq "TOLUENE") {
+        my $name = "TOL_TOLUENE";
+        my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+        $parent_emissions += $parent_source->sum * $dt ; 
+    } else {
+        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
+        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
+    }
+    
+    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
+    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
+    $consumption_rates{$_} /= $parent_emissions foreach (sort keys %consumption_rates);
+
     my $n_per_day = 43200 / $dt;
     my $n_days = int ($NTIME / $n_per_day);
     my %daily_OPEs;
@@ -237,8 +254,10 @@ sub get_data {
         my $integ_prod = $reshaped_prod->sumover;
         my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
         my $integ_cons = $reshaped_cons->sumover;
-        #print "production => $integ_prod\n";
-        #print "consumption => $integ_cons\n";
+#        if ($mechanism eq "RACM" and $VOC eq "TOL") {
+#            print "production => $integ_prod\n";
+#            print "consumption => $integ_cons\n";
+#        }
 
         my $original_consumption_rates = $consumption_rates{$carbon};
         $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
