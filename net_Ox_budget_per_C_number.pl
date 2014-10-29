@@ -88,36 +88,36 @@ foreach my $run (sort keys %plot_data) {
 
 $R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-$R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
-$R->run(q` my.colours = c(  "CB05" = "#6db875", "CBM-IV" = "#0c3f78", "CRIv2" = "#b569b3", "MCMv3.1" = "#2b9eb3", "MCMv3.2" = "#000000", "MOZART-4" = "#ef6638", "RACM" = "#0e5628", "RACM2" = "#f9c500", "RADM2" = "#6c254f") `,);
-$R->run(q` my.names = c(  "CB05" = "CB05 ", "CBM-IV" = "CBM-IV ", "CRIv2" = "CRI v2 ", "MCMv3.1" = "MCM v3.1 ", "MCMv3.2" = "MCM v3.2 ", "MOZART-4" = "MOZART-4 ", "RACM" = "RACM ", "RACM2" = "RACM2 ", "RADM2" = "RADM2 ") `,);
+$R->run(q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `);
+$R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
+$R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 
-$R->run(q` plot = ggplot(data, aes(x = Time, y = net.rate, fill = Mechanism, group = Mechanism)) `, 
-        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `,
-        q` plot = plot + facet_grid( C.number ~ VOC ) `,
+$R->run(q` plot = ggplot(data, aes(x = Mechanism, y = net.rate, fill = C.number)) `, 
+        q` plot = plot + geom_bar(data = subset(data, net.rate < 0), stat = "identity") `,
+        q` plot = plot + geom_bar(data = subset(data, net.rate > 0), stat = "identity") `,
+        q` plot = plot + facet_grid( Time ~ VOC ) `,
+        q` plot = plot + coord_flip() `,
         q` plot = plot + ylab("\nNet Ox Production (molecules (Ox) / molecules (VOC))\n") `,
         q` plot = plot + theme_bw() `,
-        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
         q` plot = plot + theme(strip.text.y = element_text(size = 200, face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title.y = element_text(size = 200, face = "bold")) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 180)) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 180)) `,
+        q` plot = plot + theme(axis.title.x = element_text(size = 200, face = "bold")) `,
+        q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
+        q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
         q` plot = plot + theme(panel.grid.major = element_blank()) `,
         q` plot = plot + theme(panel.grid.minor = element_blank()) `,
-        q` plot = plot + theme(legend.position = c(0.10, 0.03)) `,
-        q` plot = plot + theme(legend.justification = c(0.10, 0.03)) `,
+        q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.key.size = unit(10, "cm")) `,
+        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(legend.text = element_text(size = 170)) `,
-        q` plot = plot + guides(fill = guide_legend(direction = "horizontal", nrow = 2)) `,
+        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
 
-$R->run(q` CairoPDF(file = "net_Ox_daytime_budget.pdf", width = 200, height = 141) `, 
+$R->run(q` CairoPDF(file = "net_Ox_daytime_budget.pdf", width = 141, height = 200) `, 
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -264,9 +264,6 @@ sub get_data {
     $net_rates{$_} = $net_rates{$_} * $dt / $parent_emissions foreach (sort keys %net_rates);#normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     foreach my $c (sort keys %net_rates) {
         my $pdl = $net_rates{$c};
-        for my $i (1..6) {
-            #$pdl($i) += $pdl($i-1);
-        }
     }
     #print "Net: $_ => $net_rates{$_}\n" foreach sort keys %net_rates;
     return \%net_rates;
