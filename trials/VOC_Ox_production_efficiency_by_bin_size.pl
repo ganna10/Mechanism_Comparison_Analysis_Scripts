@@ -128,7 +128,7 @@ sub get_data {
     my %carbons = %$carbons;
     $families{"Ox_${mechanism}_$VOC"} = $families{"Ox_$mechanism"};
     $families{"HO2x_${mechanism}_$VOC"} = [ qw( HO2 HO2NO2 )];
-    my @loop = ("Ox_${mechanism}_$VOC", "HO2x_${mechanism}_$VOC", "HNO3");
+    my @loop = ("Ox_${mechanism}_$VOC", "HO2x_${mechanism}_$VOC");
 
     my ($producers, $producer_yields, %production_rates);
     foreach my $species (@loop) {
@@ -159,7 +159,7 @@ sub get_data {
                 my $rate = $producer_yields->[$_] * $mecca->rate($reaction_number);
                 next if ($rate->sum == 0);
                 my ($reactants) = $kpp->reactants($reaction);
-                print "@$reactants and $producer_yields->[$_]\n";
+                #print "@$reactants and $producer_yields->[$_]\n";
                 foreach (@$reactants) {
                     if ($_ =~ /_/) {
                         next if ($_ =~ /XO2/ and $species =~ /RADM2|RACM|CB/);

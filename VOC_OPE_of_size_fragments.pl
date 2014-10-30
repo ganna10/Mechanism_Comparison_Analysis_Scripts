@@ -34,7 +34,7 @@ foreach my $run (@runs) {
     my $carbons = get_carbons($run, $carbon_file);
     $families{"Ox_$mechanisms[$index]"} = [ qw( O3 NO2 HO2NO2 NO3 N2O5 O1D O ), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
-    my @VOCs = qw( Pentane Toluene );
+    my @VOCs = qw( Pentane );
     foreach my $VOC (@VOCs) {
         my $mech_species = get_model_name($VOC, $run);
         $plot_data{$mechanisms[$index]}{$VOC} = get_data($kpp, $mecca, $mechanisms[$index], $mech_species, $carbons);
@@ -55,7 +55,7 @@ $R->set('Time', [@days]);
 $R->run(q` data = data.frame() `);
 foreach my $run (sort keys %plot_data) {
     foreach my $VOC (sort keys %{$plot_data{$run}}) {
-        #next if ($run eq 'RACM' and $VOC eq 'Toluene');
+        next if ($run eq 'RACM' and $VOC eq 'Toluene');
         $R->run(q` pre = data.frame(Time) `);
         foreach my $carbon (sort keys %{$plot_data{$run}{$VOC}} ) {
             $R->set('C.number', $carbon);
@@ -64,9 +64,7 @@ foreach my $run (sort keys %plot_data) {
         }
         $R->set('Mechanism', $run);
         $R->set('VOC', $VOC);
-        $R->run(q` pre = pre[order(Time),] `,
-                q` pre = pre[1:7,] `,
-                q` if("C2.4" %in% colnames(pre)) { pre$C2 = pre$C2 + pre$C2.4 ; pre$C2.4 = NULL }`,
+        $R->run(q` if("C2.4" %in% colnames(pre)) { pre$C2 = pre$C2 + pre$C2.4 ; pre$C2.4 = NULL }`,
                 q` if("C2.9" %in% colnames(pre)) { pre$C3 = pre$C3 + pre$C2.9 ; pre$C2.9 = NULL }`,
                 q` if("C3.5" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.5 ; pre$C3.5 = NULL }`,
                 q` if("C3.6" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.6 ; pre$C3.6 = NULL }`,
@@ -85,11 +83,11 @@ foreach my $run (sort keys %plot_data) {
         );
     }
 }
-#my $p = $R->run(q` print(data) `);
-#print "$p\n"; 
+my $p = $R->run(q` print(data) `);
+print "$p\n"; 
 
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
+#$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `);
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
@@ -101,6 +99,7 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + coord_flip() `,
         q` plot = plot + ylab("\nOx Production Efficiency normalised by VOC emissions\n") `,
+        q` plot = plot + scale_y_continuous(label = scientific_10) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
@@ -239,35 +238,39 @@ sub get_data {
         my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
         $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
     }
-    
-    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
-    $consumption_rates{$_} /= $parent_emissions foreach (sort keys %consumption_rates);
 
     my $n_per_day = 43200 / $dt;
     my $n_days = int ($NTIME / $n_per_day);
     my %daily_OPEs;
-    foreach my $carbon (sort keys %production_rates) {
-        next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
-
-        my $reshaped_prod = $production_rates{$carbon}->copy->reshape($n_per_day, $n_days);
-        my $integ_prod = $reshaped_prod->sumover;
-        my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
-        my $integ_cons = $reshaped_cons->sumover;
-#        if ($mechanism eq "RACM" and $VOC eq "TOL") {
-#            print "production => $integ_prod\n";
-#            print "consumption => $integ_cons\n";
+#    foreach my $carbon (sort keys %production_rates) {
+#        next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
+#
+#        my $reshaped_prod = $production_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+#        my $integ_prod = $reshaped_prod->sumover;
+#        my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+#        my $integ_cons = $reshaped_cons->sumover;
+#        if ($mechanism =~ /CB/ and $VOC =~ "TOL") {
+#            print "$carbon production => $integ_prod\n";
+#            print "$carbon consumption => $integ_cons\n";
 #        }
-
-        my $original_consumption_rates = $consumption_rates{$carbon};
-        $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
-        my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
-        my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
-        my $integrated_OPE = $reshaped_OPE->sumover;
-        $integrated_OPE = $integrated_OPE(0:13:2); #choose day time period
-        $daily_OPEs{$carbon} = $integrated_OPE;
+#
+#        my $original_consumption_rates = $consumption_rates{$carbon};
+#        $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
+#        my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
+#        my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
+#        my $integrated_OPE = $reshaped_OPE->sumover / $parent_emissions; #normalise by VOC emissions
+#        $integrated_OPE = $integrated_OPE(0:13:2); #choose day time period
+#        #print "$mechanism: $carbon => $integrated_OPE\n";
+#        $daily_OPEs{$carbon} = $integrated_OPE;
+#    }
+    foreach (keys %production_rates) {
+        $production_rates{$_} = $production_rates{$_} * $dt / $parent_emissions;
+        my $reshape = $production_rates{$_}->copy->reshape($n_per_day, $n_days);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $production_rates{$_} = $integrate;
     }
-    return \%daily_OPEs;
+    return \%production_rates;
 }
 
 sub get_no2_reservoirs { #get species that are produced when radical species react with NO2

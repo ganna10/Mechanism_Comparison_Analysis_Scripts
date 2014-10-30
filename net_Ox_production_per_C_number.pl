@@ -15,7 +15,7 @@ my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
 my $NTIME = $mecca->time->nelem;
 
 my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
 #my @runs = qw( CBM4_tagging CB05_tagging );
 #my @mechanisms = ( "CBM-IV", "CB05" );
 my $index = 0;
@@ -83,12 +83,12 @@ foreach my $run (sort keys %plot_data) {
         );
     } 
 }
-#my $p = $R->run(q` print(data) `);
-#print "$p\n"; 
 
 $R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-$R->run(q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `);
+#$R->run(q` data$Mechanism = factor(data$Mechanism, levels = (c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `);
+#my $p = $R->run(q` print(levels(data$Mechanism)) `);
+#print "$p\n"; 
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 
@@ -98,6 +98,7 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = net.rate, fill = C.number)
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + coord_flip() `,
         q` plot = plot + ylab("\nNet Ox Production (molecules (Ox) / molecules (VOC))\n") `,
+        q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
@@ -117,7 +118,7 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = net.rate, fill = C.number)
 );
 
 
-$R->run(q` CairoPDF(file = "net_Ox_daytime_budget.pdf", width = 141, height = 200) `, 
+$R->run(q` CairoPDF(file = "net_Ox_daytime_production.pdf", width = 141, height = 200) `, 
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -262,10 +263,6 @@ sub get_data {
     }
     
     $net_rates{$_} = $net_rates{$_} * $dt / $parent_emissions foreach (sort keys %net_rates);#normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    foreach my $c (sort keys %net_rates) {
-        my $pdl = $net_rates{$c};
-    }
-    #print "Net: $_ => $net_rates{$_}\n" foreach sort keys %net_rates;
     return \%net_rates;
 }
 

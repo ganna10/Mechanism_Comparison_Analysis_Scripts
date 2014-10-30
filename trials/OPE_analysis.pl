@@ -14,10 +14,10 @@ my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
 my $NTIME = $mecca->time->nelem;
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" );
-#my @runs = qw( MOZART_tagging CB05_tagging );
-#my @mechanisms = ( "MOZART-4", "CB05" );
+#my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
+#my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" );
+my @runs = qw( MOZART_tagging CB05_tagging );
+my @mechanisms = ( "MOZART-4", "CB05" );
 my $index = 0;
 
 my (%families, %weights, %plot_data, %legend);
@@ -32,7 +32,7 @@ foreach my $run (@runs) {
     my $carbons = get_carbons($run, $carbon_file);
     $families{"Ox_$mechanisms[$index]"} = [ qw( O3 NO2 HO2NO2 NO3 N2O5 O1D O ), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
-    my @VOCs = qw( Pentane Toluene );
+    my @VOCs = qw( Pentane );
     foreach my $VOC (@VOCs) {
         my $mech_species = get_model_name($VOC, $run);
         $plot_data{$mechanisms[$index]}{$VOC} = get_data($kpp, $mecca, $mechanisms[$index], $mech_species, $carbons);
@@ -56,7 +56,6 @@ $R->set('Time', [@days]);
 $R->run(q` data = data.frame() `);
 foreach my $run (sort keys %plot_data) {
     foreach my $VOC (sort keys %{$plot_data{$run}}) {
-        #next if ($run eq 'RACM' and $VOC eq 'Toluene');
         $R->run(q` pre = data.frame(Time) `);
         foreach my $carbon (sort keys %{$plot_data{$run}{$VOC}} ) {
             $R->set('C.number', $carbon);
@@ -65,22 +64,7 @@ foreach my $run (sort keys %plot_data) {
         }
         $R->set('Mechanism', $run);
         $R->set('VOC', $VOC);
-        $R->run(q` pre = pre[order(Time),] `,
-                q` pre = pre[1:7,] `,
-                q` if("C2.4" %in% colnames(pre)) { pre$C2 = pre$C2 + pre$C2.4 ; pre$C2.4 = NULL }`,
-                q` if("C2.9" %in% colnames(pre)) { pre$C3 = pre$C3 + pre$C2.9 ; pre$C2.9 = NULL }`,
-                q` if("C3.5" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.5 ; pre$C3.5 = NULL }`,
-                q` if("C3.6" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.6 ; pre$C3.6 = NULL }`,
-                q` if("C3.9" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.9 ; pre$C3.9 = NULL }`,
-                q` if("C4.2" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C4.2 ; pre$C4.2 = NULL }`,
-                q` if("C4.5" %in% colnames(pre)) { pre$C5 = pre$C5 + pre$C4.5 ; pre$C4.5 = NULL }`,
-                q` if("C4.8" %in% colnames(pre)) { pre$C5 = pre$C4.8 ; pre$C4.8 = NULL }`,
-                q` if("C5.6" %in% colnames(pre)) { pre$C6 = pre$C5.6 ; pre$C5.6 = NULL }`,
-                q` if("C6.6" %in% colnames(pre)) { pre$C7 = pre$C6.6 ; pre$C6.6 = NULL }`,
-                q` if("C7.1" %in% colnames(pre)) { pre$C7 = pre$C7 + pre$C7.1 ; pre$C7.1 = NULL }`,
-                q` if("C7.75" %in% colnames(pre)) { pre$C8 = pre$C7.75 ; pre$C7.75 = NULL }`,
-                q` pre = melt(pre, id.vars = c("Time"), variable.name = "C.number", value.name = "OPE") `,
-                q` pre$Mechanism = rep(Mechanism, length(pre$Time)) `,
+        $R->run( q` pre$Mechanism = rep(Mechanism, length(pre$Time)) `,
                 q` pre$VOC = rep(VOC, length(pre$Time)) `,
                 q` data = rbind(data, pre) `,
         );
@@ -89,17 +73,12 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
-#$R->run(q` my.colours = c(  "CB05" = "#6db875", "CBM-IV" = "#0c3f78", "CRIv2" = "#b569b3", "MCMv3.1" = "#2b9eb3", "MCMv3.2" = "#000000", "MOZART-4" = "#ef6638", "RACM" = "#0e5628", "RACM2" = "#f9c500", "RADM2" = "#6c254f") `,);
-#$R->run(q` my.names = c(  "CB05" = "CB05 ", "CBM-IV" = "CBM-IV ", "CRIv2" = "CRI v2 ", "MCMv3.1" = "MCM v3.1 ", "MCMv3.2" = "MCM v3.2 ", "MOZART-4" = "MOZART-4 ", "RACM" = "RACM ", "RACM2" = "RACM2 ", "RADM2" = "RADM2 ") `,);
 $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `);
 
 $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
         q` plot = plot + geom_bar(stat = "identity") `, 
-        #q` plot = plot + geom_point(size = 20) `,
-        #q` plot = plot + geom_line(size = 10) `,
         q` plot = plot + facet_grid(Time ~ VOC) `,
+        q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05"))) `,
         q` plot = plot + coord_flip() `,
         q` plot = plot + ylab(expression(bold(paste("\nNormalised Ox Production Efficiency (molecules ", (VOC)^-1, cm^3, "s)")))) `,
         #q` plot = plot + scale_y_continuous(labels = scientific_10) `,
@@ -124,15 +103,15 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OPE, fill = C.number)) `,
         #q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "OPE_analysis.pdf", width = 141, height = 200) `,
-        q` print(plot) `,
-        q` dev.off() `,
-);
+#$R->run(q` CairoPDF(file = "OPE_analysis.pdf", width = 141, height = 200) `,
+#        q` print(plot) `,
+#        q` dev.off() `,
+#);
 
 $R->stop();
 
 sub get_data {
-    my ($kpp, $mecca, $mechanism, $VOC,$carbons) = @_;
+    my ($kpp, $mecca, $mechanism, $VOC, $carbons) = @_;
     my %carbons = %$carbons;
     $families{"Ox_${mechanism}_$VOC"} = $families{"Ox_$mechanism"};
     $families{"HO2x_${mechanism}_$VOC"} = [ qw( HO2 HO2NO2 )];
