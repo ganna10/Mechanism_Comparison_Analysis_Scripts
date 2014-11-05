@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Plot CH3CO3 production and comparison budgets for MCM3.2 and MOZART mechanisms
 # Version 0: Jane Coates 28/9/2014
+# Version 1: Jane Coates 5/11/2014 Analysis for all mechanisms
 
 use strict;
 use diagnostics;
@@ -10,7 +11,7 @@ use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $times = $mecca->time;
@@ -51,9 +52,9 @@ foreach my $time (@time_axis) {#map to day and night
     }
 }
 
-my @runs = qw( MCM_3.2_tagged MOZART_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MOZART-4" );
-my @base_name = qw( CH3CO3 CH3CO3 );
+my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
+my @mechanisms = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
+my @base_name = qw( CH3CO3 CH3CO3 CH3CO3 CH3CO3 ACO3 ACO3 ACO3 C2O3 C2O3 );
 #my @runs = qw( RACM_tagging ) ;
 #my @mechanisms = qw( RACM );
 #my @base_name = qw( ACO3 );
@@ -90,32 +91,39 @@ $R->run(q` arrange.data = function (data) { data = ddply(data, .(Time), colwise(
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "Consumption Others" = "#1c3e3d",
-                            "MEKO2 + NO = CH3CHO\n+ CH3CO3 + NO2" = "#0e5c28",
-                            "CH3CO3 + NO = CH3O2 + NO2" = "#4c9383", "CH3CO3 + NO = CH3O2\n+ CO2 + NO2" = "#4c9383", 
-                            "PAN = CH3CO3 + NO2" = "#8d1435", 
-                            "CH3CO3 + NO2 = PAN" = "#6d6537", 
-                            "CH3CHO + OH = CH3CO3" = "#e7e85e", "CH3CHO + OH = CH3CO3\n+ H2O" = "#e7e85e" ) `,
+                            "MEKO2 + NO" = "#0e5c28",
+                            "CH3CO3 + NO" = "#4c9383", "ACO3 + NO" = "#4c9383", "C2O3 + NO" = "#4c9383",
+                            "PAN" = "#8d1435", 
+                            "CH3CO3 + NO2" = "#6d6537", "ACO3 + NO2" = "#6d6537", "C2O3 + NO2" = "#6d6537",
+                            "CH3CHO + OH" = "#e7e85e", "ALD + OH" = "#e7e85e", "ACD + OH" = "#e7e85e", "ALD2 + OH" = "#e7e85e", 
+                            "CH3COCH2O" = "#000000",
+                            "NO + RN11O2" = "#6c254f",
+                            "NO + RN8O2" = "#898989",
+                            "KET + hv" = "#86b650",
+                            "MGLY + OH" = "#77aecc") `,
 );
 
 $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) ;
                                                             plot = plot + geom_bar(data = subset(data, Rate >= 0), stat = "identity") ;
                                                             plot = plot + geom_bar(data = subset(data, Rate < 0), stat = "identity") ;
-                                                            plot = plot + scale_y_continuous(limits = c(-5e8, 5e8), breaks = seq(-5e8, 5e8, 1e8)) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(legend.position = c(0.99, 0.99)) ;
                                                             plot = plot + theme(legend.justification = c(0.99, 0.99)) ;
                                                             plot = plot + theme(panel.grid.minor = element_blank()) ;
                                                             plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 90, face = "bold")) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 60)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 140, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
+                                                            plot = plot + theme(axis.ticks.length = unit(2.5, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 40)) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 130)) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(legend.key.size = unit(4, "cm")) ;
+                                                            plot = plot + theme(legend.key.size = unit(6, "cm")) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-7e8, 7e8), breaks = seq(-7e8, 7e8, 2e8)) ;
                                                             plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
                                                             return(plot) } `,
 );
@@ -139,14 +147,23 @@ foreach my $run (sort keys %plot_data) {
             q` plot = plotting(data, legend, mechanism) `,
             q` plots = c(plots, list(plot)) `, #add plot to list 
     );
+    #my $p = $R->run(q` print(data) `);
+    #print "$run\n$p\n";
 }
 
-$R->run(q` CairoPDF(file = "CH3CO3_budget_comparison.pdf", width = 57, height = 40) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
-                                                    plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    nrow = 1), 
+$R->run(q` CairoPDF(file = "CH3CO3_budget_comparison.pdf", width = 141, height = 200) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                                                    plots[[2]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                                                    plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[6]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[7]], 
+                                                    plots[[8]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 85), vjust = 0.5) ) `,
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 180), vjust = 0.5) ) `,
         q` print(multiplot) `,
         q` dev.off() `,
 );
@@ -175,8 +192,7 @@ sub get_data {
     die "No producers found for $species\n" if (@$producers == 0);
     die "No consumers found for $species\n" if (@$consumers == 0);
 
-    my $prod_others_max = 4e7;
-    my $max_string_width = 28;
+    my $prod_others_max = 7e7;
     for (0..$#$producers) { #get rates for all producing reactions
         my $reaction = $producers->[$_];
         my $reaction_number = $kpp->reaction_number($reaction);
@@ -184,16 +200,8 @@ sub get_data {
         next if ($rate->sum == 0); # do not include reactions that do not occur 
         my $reaction_string = $kpp->reaction_string($reaction);
         $reaction_string =~ s/_(.*?)\b//g;
-        if ($reaction_string =~ /MEKO2 \+ NO/) {
-            $reaction_string = "MEKO2 + NO = CH3CHO\n+ CH3CO3 + NO2";
-        } elsif ($reaction_string =~ /CH3CO3 \+ H2O/) {
-            $reaction_string = "CH3CHO + OH = CH3CO3\n+ H2O";
-        }
-        if ($rate->sum <= $prod_others_max) {
-            $production_reaction_rates{"Production Others"} += $rate;
-        } else {
-            $production_reaction_rates{$reaction_string} += $rate;
-        }
+        my ($reactants, $products) = split / = /, $reaction_string;
+        $production_reaction_rates{$reactants} += $rate;
     }
 
     for (0..$#$consumers) { #get rates for all consuming reactions
@@ -203,17 +211,28 @@ sub get_data {
         next if ($rate->sum == 0); # do not include reactions that do not occur
         my $reaction_string = $kpp->reaction_string($reaction);
         $reaction_string =~ s/_(.*?)\b//g;
-        if ($reaction_string =~ /CH3CO3 \+ NO = CH3O2 \+ CO2/) {
-            $reaction_string = "CH3CO3 + NO = CH3O2\n+ CO2 + NO2";
-        }
-        if ($rate->sum >= -$prod_others_max) {
-            $consumption_reaction_rates{"Consumption Others"} += $rate;
-        } else {
-            $consumption_reaction_rates{$reaction_string} += $rate;
-        }
+        my ($reactants, $products) = split / = /, $reaction_string;
+        $consumption_reaction_rates{$reactants} += $rate;
     } 
 
     remove_common_processes(\%production_reaction_rates, \%consumption_reaction_rates);
+
+    foreach (keys %production_reaction_rates) {
+        if ($production_reaction_rates{$_}->sum < $prod_others_max) {
+            $production_reaction_rates{"Production Others"} += $production_reaction_rates{$_};
+            delete $production_reaction_rates{$_};
+        }
+    }
+
+    foreach (keys %consumption_reaction_rates) {
+        if ($consumption_reaction_rates{$_}->sum > -$prod_others_max) {
+            $consumption_reaction_rates{"Consumption Others"} += $consumption_reaction_rates{$_};
+            delete $consumption_reaction_rates{$_};
+        }
+        if ($species =~ /MOZART/) {
+            delete $consumption_reaction_rates{"CH3CO3"};
+        }
+    }
     
     my $sort_function = sub { $_[0]->sum };
     my @prod_sorted_data = sort { &$sort_function($production_reaction_rates{$b}) <=> &$sort_function($production_reaction_rates{$a}) } keys %production_reaction_rates;
