@@ -69,8 +69,8 @@ foreach my $mechanism (keys %plot_data) {
 #print $p, "\n";
 
 $R->run(q` scientific_10 = function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `);
-$R->run(q` my.colours = c( "Methane" = "#c9a415", "Ethane" = "#ae4901", "Propane" = "#f9c600", "Butane" = "#76afca", "2-Methylpropane" = "#dc3522", "Pentane" = "#8c6238", "2-Methylbutane" = "#9bb08f", "Hexane" = "#8b1537", "Heptane" = "#ba8b01", "Octane" = "#0352cb", "Ethene" = "#86b650", "Propene" = "#6c254f", "Butene" = "#ee6738", "2-Methylpropene" = "#58691b", "Isoprene" = "#8ed6d5", "Benzene" = "#f3aa7f", "Toluene" = "#c65d6c", "m-Xylene" = "#888a87", "o-Xylene" = "#0e5c28", "p-Xylene" = "#b569b3", "Ethylebenzene" = "#2c9def", "Others" = "#696537" ) `,
-    q` data$VOC = factor(data$VOC, levels = c("Methane", "Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Ethene", "Propene", "Butene", "2-Methylpropene", "Isoprene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Others")) `,
+$R->run(q` my.colours = c( "Methane" = "#c9a415", "Ethane" = "#ae4901", "Propane" = "#f9c600", "Butane" = "#76afca", "2-Methylpropane" = "#dc3522", "Pentane" = "#8c6238", "2-Methylbutane" = "#9bb08f", "Hexane" = "#8b1537", "Heptane" = "#ba8b01", "Octane" = "#0352cb", "Ethene" = "#86b650", "Propene" = "#6c254f", "Butene" = "#ee6738", "2-Methylpropene" = "#58691b", "Isoprene" = "#8ed6d5", "Benzene" = "#f3aa7f", "Toluene" = "#c65d6c", "m-Xylene" = "#888a87", "o-Xylene" = "#0e5c28", "p-Xylene" = "#b569b3", "Ethylbenzene" = "#2c9def", "Others" = "#696537" ) `,
+    q` data$VOC = factor(data$VOC, levels = c("Methane", "Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Ethene", "Propene", "Butene", "2-Methylpropene", "Isoprene", "Benzene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Ethylbenzene", "Others")) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC)) `,
@@ -82,7 +82,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC)) `,
         q` plot = plot + scale_y_continuous(label = scientific_10) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(strip.text = element_text(size = 200, face = "bold")) `,
-        q` plot = plot + theme(axis.title.x = element_text(size = 160)) `,
+        q` plot = plot + theme(axis.title.x = element_text(size = 100)) `,
         q` plot = plot + theme(axis.title.y = element_text(size = 180, face = "bold")) `,
         q` plot = plot + theme(axis.text.x = element_text(size = 160)) `,
         q` plot = plot + theme(axis.text.y = element_text(size = 150)) `,
@@ -97,7 +97,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, guide = guide_legend(label.theme = element_text(size = 140, angle = 0), label.vjust = 0.5, nrow = 2)) `,
 );
 
-$R->run(q` CairoPDF(file = "HCHO_VOC_allocated_production_rates.pdf", width = 151, height = 200) `,
+$R->run(q` CairoPDF(file = "HCHO_VOC_allocated_production_rates.pdf", width = 165, height = 200) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -156,8 +156,8 @@ sub get_data {
         }
     } 
 
-    remove_common_processes(\%production_reaction_rates, \%consumption_reaction_rates);
-    my $others_max = 2e6;
+    #remove_common_processes(\%production_reaction_rates, \%consumption_reaction_rates);
+    my $others_max = 8e6;
     foreach my $VOC (keys %production_reaction_rates) {
         if ($production_reaction_rates{$VOC}->sum < $others_max) {
             $production_reaction_rates{"Others"} += $production_reaction_rates{$VOC};
