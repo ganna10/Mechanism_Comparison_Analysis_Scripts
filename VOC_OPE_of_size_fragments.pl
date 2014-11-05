@@ -83,8 +83,8 @@ foreach my $run (sort keys %plot_data) {
         );
     }
 }
-my $p = $R->run(q` print(data) `);
-print "$p\n"; 
+#my $p = $R->run(q` print(data) `);
+#print "$p\n"; 
 
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 #$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
@@ -242,34 +242,34 @@ sub get_data {
     my $n_per_day = 43200 / $dt;
     my $n_days = int ($NTIME / $n_per_day);
     my %daily_OPEs;
-#    foreach my $carbon (sort keys %production_rates) {
-#        next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
-#
-#        my $reshaped_prod = $production_rates{$carbon}->copy->reshape($n_per_day, $n_days);
-#        my $integ_prod = $reshaped_prod->sumover;
-#        my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
-#        my $integ_cons = $reshaped_cons->sumover;
-#        if ($mechanism =~ /CB/ and $VOC =~ "TOL") {
-#            print "$carbon production => $integ_prod\n";
-#            print "$carbon consumption => $integ_cons\n";
-#        }
-#
-#        my $original_consumption_rates = $consumption_rates{$carbon};
-#        $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
-#        my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
-#        my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
-#        my $integrated_OPE = $reshaped_OPE->sumover / $parent_emissions; #normalise by VOC emissions
-#        $integrated_OPE = $integrated_OPE(0:13:2); #choose day time period
-#        #print "$mechanism: $carbon => $integrated_OPE\n";
-#        $daily_OPEs{$carbon} = $integrated_OPE;
-#    }
-    foreach (keys %production_rates) {
-        $production_rates{$_} = $production_rates{$_} * $dt / $parent_emissions;
-        my $reshape = $production_rates{$_}->copy->reshape($n_per_day, $n_days);
-        my $integrate = $reshape->sumover;
-        $integrate = $integrate(0:13:2);
-        $production_rates{$_} = $integrate;
+    foreach my $carbon (sort keys %production_rates) {
+        next unless (exists $consumption_rates{$carbon} and exists $production_rates{$carbon});
+
+        my $reshaped_prod = $production_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+        my $integ_prod = $reshaped_prod->sumover;
+        my $reshaped_cons = $consumption_rates{$carbon}->copy->reshape($n_per_day, $n_days);
+        my $integ_cons = $reshaped_cons->sumover;
+        if ($mechanism =~ /CB/ and $VOC =~ "TOL") {
+            print "$carbon production => $integ_prod\n";
+            print "$carbon consumption => $integ_cons\n";
+        }
+
+        my $original_consumption_rates = $consumption_rates{$carbon};
+        $consumption_rates{$carbon}->where($original_consumption_rates == 0) += 1; #if consumption rate is 0 then just need production rate
+        my $OPE = $production_rates{$carbon} / -$consumption_rates{$carbon} ;
+        my $reshaped_OPE = $OPE->copy->reshape($n_per_day, $n_days);
+        my $integrated_OPE = $reshaped_OPE->sumover / $parent_emissions; #normalise by VOC emissions
+        $integrated_OPE = $integrated_OPE(0:13:2); #choose day time period
+        #print "$mechanism: $carbon => $integrated_OPE\n";
+        $daily_OPEs{$carbon} = $integrated_OPE;
     }
+#    foreach (keys %production_rates) {
+#        $production_rates{$_} = $production_rates{$_} * $dt / $parent_emissions;
+#        my $reshape = $production_rates{$_}->copy->reshape($n_per_day, $n_days);
+#        my $integrate = $reshape->sumover;
+#        $integrate = $integrate(0:13:2);
+#        $production_rates{$_} = $integrate;
+#    }
     return \%production_rates;
 }
 
