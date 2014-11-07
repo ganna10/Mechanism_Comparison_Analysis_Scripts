@@ -1,6 +1,7 @@
 #!/usr/bin/env perl 
 # Ox production budget plots from all tagged mechanisms
 # Version 0: Jane Coates 28/08/2014
+# Version 1: Jane Coates 7/11/2014 aesthetic refinements including re-assigning colours
 
 use strict;
 use diagnostics;
@@ -10,7 +11,7 @@ use MECCA;
 use KPP;
 use Statistics::R;
 
-my $mcm_3_2_run = "/work/users/jco/MECCA/MCM_3.2_tagged/boxmodel";
+my $mcm_3_2_run = "/local/home/coates/MECCA/MCM_3.2_tagged/boxmodel";
 my $mcm_3_2_mecca = MECCA->new($mcm_3_2_run); 
 my $NTIME = $mcm_3_2_mecca->time->nelem;
 my $times = $mcm_3_2_mecca->time;
@@ -53,7 +54,7 @@ foreach my $time (@time_axis) {
 
 my %families = ( 'HO2x' => [ qw( HO2 HO2NO2 ) ] );
 my (%weights, %production_rates, %sorted_plot_data); 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my @model_runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging ); 
 my @run_name = qw( mcm_3_2 mcm_3_1 cri mozart radm2 racm racm2 cbm4 cb05 );
 my $run_name_index = 0;
@@ -210,26 +211,23 @@ sub plot { #create dataframe and then create plot
 
             #set colours and legend names
             q` my.colours = c(  "Production Others" = "#696537", 
-                                "Heptane " = "#f9c600", 
-                                "Ethybenzene " = "#76afca", 
-                                "Benzene " = "#dc3522",
-                                "o-Xylene " = "#8c6238", 
-                                "p-Xylene " = "#9bb08f", 
-                                "Hexane " = "#8b1537", 
+                                "Methane " = "#6c254f",
+                                "CO " = "#f9c500", 
+                                "Ethane " = "#0352cb", 
+                                "Propane " = "#0e5c28", 
                                 "2-Methylpropane " = "#e7e85e", 
-                                "Propene " = "#0352cb",
-                                "Ethane " = "#86b650",
-                                "m-Xylene " = "#6c254f",
-                                "Isoprene " = "#ee6738",
-                                "Ethene " = "#58691b",
-                                "Pentane " = "#8ed6d5",
-                                "Propane " = "#f3aa7f",
-                                "Toluene " = "#c65d6c",
-                                "Butane " = "#888a87", 
-                                "2-Methylbutane " = "#0e5c28", 
-                                "2-Methylpropene " = "red",
-                                "Methane " = "#b569b3", 
-                                "CO " = "#2c9def" ) `,
+                                "Butane " = "#ef6638", 
+                                "Pentane " = "#b569b3", 
+                                "2-Methylbutane " = "#4c9383", 
+                                "Hexane " = "#86b650", 
+                                "Ethene " = "#cc6329", 
+                                "Propene " = "#2b9eb3", 
+                                "2-Methylpropene " = "#f7c56c",
+                                "Isoprene " = "#0c3f78",
+                                "Toluene " = "#8c1531",
+                                "m-Xylene " = "#6db875",
+                                "o-Xylene " = "#f3aa7f",
+                                "p-Xylene " = "#be2448" ) `,
             
             q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `, #scientific label format for y-axis
 
@@ -239,7 +237,7 @@ sub plot { #create dataframe and then create plot
             q` plot = plot + geom_bar(stat = "identity") `,
             q` plot = plot + facet_wrap( ~ Mechanism, nrow = 3) `,
             q` plot = plot + theme_bw() `,
-            q` plot = plot + theme(panel.margin = unit(5, 'lines')) `,
+            q` plot = plot + theme(panel.margin = unit(1, 'cm')) `,
             q` plot = plot + theme(strip.text = element_text(size = 200, face = "bold")) `,
             q` plot = plot + theme(strip.background = element_blank()) `,
             q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
@@ -251,6 +249,8 @@ sub plot { #create dataframe and then create plot
             q` plot = plot + theme(axis.title.y = element_text(size = 200)) `,
             q` plot = plot + theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank()) `,
             q` plot = plot + theme(panel.grid.minor.y=element_blank(), panel.grid.major.y=element_blank()) `,
+            q` plot = plot + theme(axis.ticks.length = unit(2, "cm")) `, 
+            q` plot = plot + theme(axis.ticks.margin = unit(1, "cm")) `, 
             q` plot = plot + theme(legend.position = "bottom", legend.title = element_blank()) `,
             q` plot = plot + scale_y_continuous(limits=c(0, 1.8e9), breaks=seq(0, 1.8e9, 2e8), label = scientific_10)`,
             q` plot = plot + theme(legend.key = element_blank()) `,
