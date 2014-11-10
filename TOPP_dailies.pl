@@ -1,6 +1,7 @@
 #! /usr/bin/perl
 # print out daily TOPP values on one plot
 # Version 0: Jane Coates 10/02/2014
+# Version 1: Jane Coates 10/11/2014 aesthetic updates
 
 use strict;
 use diagnostics;
@@ -8,7 +9,7 @@ use Statistics::R;
 
 my %TOPP;
 
-my $base = "/work/users/jco/MECCA/Mechanism_Comparison/TOPP_values_comparison";
+my $base = "/local/home/coates/MECCA/Mechanism_Comparison/TOPP_values_comparison";
 my $mcm3_1_file = "$base/MCMv3.1_TOPP_values.txt";
 my $mcm3_2_file = "$base/MCMv3.2_TOPP_values.txt";
 my $cri_file = "$base/CRIv2_TOPP_values.txt";
@@ -140,26 +141,26 @@ $R->run(q` NMVOC = c(NMVOC) `,
 $R->run(q` data$NMVOC = factor(data$NMVOC, levels = c('C2H6', 'C3H8', 'NC4H10', 'IC4H10', 'NC5H12', 'IC5H12', 'NC6H14', 'NC7H16', 'NC8H18', 'C2H4', 'C3H6', 'BUT1ENE', 'MEPROPENE', 'C5H8', 'BENZENE', 'TOLUENE', 'MXYL', 'PXYL', 'OXYL', 'EBENZ')) `);
 
 #change facet labels
-$R->run(q` facet_labels = list( 'C2H6' = 'Ethane',
-                                'C3H8' = 'Propane',
-                                'NC4H10' = 'Butane',
-                                'IC4H10' = '2-Methylpropane',
-                                'NC5H12' = 'Pentane',
-                                'IC5H12' = '2-Methylbutane',
-                                'NC6H14' = 'Hexane',
-                                'NC7H16' = 'Heptane',
-                                'NC8H18' = 'Octane',
-                                'C2H4' = 'Ethene',
-                                'C3H6' = 'Propene',
-                                'BUT1ENE' = 'Butene',
-                                'MEPROPENE' = '2-Methylpropene',
-                                'C5H8' = 'Isoprene',
-                                'BENZENE' = 'Benzene',
-                                'TOLUENE' = 'Toluene',
-                                'MXYL' = 'm-Xylene',
-                                'PXYL' = 'p-Xylene',
-                                'OXYL' = 'o-Xylene',
-                                'EBENZ' = 'Ethylbenzene') `
+$R->run(q` facet_labels = list( "C2H6" = "Ethane\n",
+                                "C3H8" = "Propane\n",
+                                "NC4H10" = "Butane\n",
+                                "IC4H10" = "2-Methylpropane\n",
+                                "NC5H12" = "Pentane\n",
+                                "IC5H12" = "2-Methylbutane\n",
+                                "NC6H14" = "Hexane\n",
+                                "NC7H16" = "Heptane\n",
+                                "NC8H18" = "Octane\n",
+                                "C2H4" = "Ethene\n",
+                                "C3H6" = "Propene\n",
+                                "BUT1ENE" = "Butene\n",
+                                "MEPROPENE" = "2-Methylpropene\n",
+                                "C5H8" = "Isoprene\n",
+                                "BENZENE" = "Benzene\n",
+                                "TOLUENE" = "Toluene\n",
+                                "MXYL" = "m-Xylene\n",
+                                "PXYL" = "p-Xylene\n",
+                                "OXYL" = "o-Xylene\n",
+                                "EBENZ" = "Ethylbenzene\n") `
 );
 
 #function for labeller
@@ -173,8 +174,8 @@ $R->run(q` my.colours = c(  "CB05" = "#0352cb",
                             "RACM" = "#6c254f",
                             "RACM2" = "#4682b4",
                             "RADM2" = "#035c28") `,);
-$R->run(q` plot.lines = function () { list( geom_line(size = 3) ,
-                                            geom_point(size = 5), 
+$R->run(q` plot.lines = function () { list( geom_line(size = 5) ,
+                                            geom_point(size = 10), 
                                             scale_x_continuous(limits = c(1, 7), breaks = seq(1, 7, 1)), expand_limits(x = 1, y = 0), 
                                             facet_grid(. ~ NMVOC, scales = "free", space = "free", labeller = facet_labeller), 
                                             scale_y_continuous(limits = c(0,7), breaks = seq(0, 7, 1)), 
@@ -185,11 +186,13 @@ $R->run(q` plot.lines = function () { list( geom_line(size = 3) ,
                                             theme(legend.text = element_text(size = 60)) ,
                                             theme(legend.key.size = unit(6, "cm")), 
                                             theme(strip.background = element_blank()), 
-                                            theme(strip.text.x = element_text(size = 70, face = "bold", vjust = 1)), 
+                                            theme(strip.text.x = element_text(size = 70, face = "bold", vjust = 0)), 
                                             theme(axis.title.x = element_blank()), 
                                             theme(axis.title.y = element_blank()), 
                                             scale_colour_manual(values = my.colours), 
                                             theme(panel.grid.minor.x = element_blank(), panel.grid.major.x = element_blank()) ,
+                                            theme(axis.ticks.length = unit(0.5, "cm")) ,
+                                            theme(axis.ticks.margin = unit(0.25, "cm")) ,
                                             theme(panel.grid.minor.y = element_blank(), panel.grid.major.y = element_blank()) ,
                                             theme(panel.margin = unit(0.3 , "lines")), 
                                             theme(legend.key = element_blank()) ) } `,
@@ -207,7 +210,7 @@ $R->run(q` plot1 = ggplot(data = subset(data, NMVOC == "C2H6" | NMVOC == "C3H8" 
         q` plot4 = ggplot(data = subset(data, NMVOC == "TOLUENE" | NMVOC == "MXYL" | NMVOC == "OXYL" | NMVOC == "PXYL" | NMVOC == "EBENZ"), aes(x = times, y = TOPP.value, colour = Mechanism)) `,
         q` plot4 = plot4 + plot.lines() `, 
 
-        q` y.label = textGrob("TOPP (molecules(Ox)/molecules(VOC))", rot = 90, gp = gpar(fontsize = 70, fontface = "bold"), vjust = 0.5) `,
+        q` y.label = textGrob("TOPP (molecules(Ox)/molecules(VOC))\n", rot = 90, gp = gpar(fontsize = 70, fontface = "bold"), vjust = 0.8) `,
         q` legend = gtable_filter(ggplot_gtable(ggplot_build(plot1)), "guide-box") `,
                     q` CairoPDF(file = "TOPP_daily_values_all_species.pdf", width = 57, height = 40) `,
                     q` main.plot = grid.arrange(y.label, 
@@ -219,7 +222,7 @@ $R->run(q` plot1 = ggplot(data = subset(data, NMVOC == "C2H6" | NMVOC == "C3H8" 
                                                 sub = textGrob("Time (days)\n", gp = gpar(fontsize = 70, fontface = "bold"), vjust = 0.5), 
                                                 legend, 
                                                 nrow = 1, ncol = 3,
-                                                widths=unit.c(unit(5, "lines"), unit(1, "npc") - unit(5, "lines") - legend$width, legend$width)) `,
+                                                widths=unit.c(unit(8, "lines"), unit(1, "npc") - unit(8, "lines") - legend$width, legend$width)) `,
                     q` print(main.plot) `,
                     q` dev.off() `,
 );
