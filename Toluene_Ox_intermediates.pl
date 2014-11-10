@@ -113,15 +113,17 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 60)) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 90, face = "bold")) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 55, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 50)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 70, face = "bold")) ;
                                                             plot = plot + theme(panel.grid.major = element_blank()) ;
                                                             plot = plot + theme(panel.grid.minor = element_blank()) ;
+                                                            plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 40)) ;
-                                                            plot = plot + theme(legend.key.size = unit(3.5, "cm")) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 30)) ;
+                                                            plot = plot + theme(legend.key.size = unit(2.5, "cm")) ;
                                                             plot = plot + theme(legend.justification = c(0.99, 0.01)) ;
                                                             plot = plot + theme(legend.position = c(0.99, 0.01)) ;
                                                             plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5)) ;
@@ -154,7 +156,7 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 60, height = 46) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 50, height = 35) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] , 
                                                     plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
