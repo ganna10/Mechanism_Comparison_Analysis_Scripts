@@ -105,10 +105,11 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + scale_y_continuous(limits = c(0, 6.5e8), breaks = seq(0, 6.5e8, 1e8)) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
-                                                            plot = plot + xlab("\n");
                                                             plot = plot + theme(panel.grid.major = element_blank()) ;
                                                             plot = plot + theme(panel.grid.minor = element_blank()) ;
-                                                            plot = plot + theme(axis.title.x = element_text(size = 100)) ;
+                                                            plot = plot + theme(axis.ticks.length = unit(2, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
+                                                            plot = plot + theme(axis.title.x = element_blank()) ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
@@ -146,18 +147,19 @@ foreach my $run (sort keys %plot_data) {
 }
 
 $R->run(q` CairoPDF(file = "radical_production_analysis.pdf", width = 141, height = 200) `,
-        q` multiplot = grid.arrange(arrangeGrob(plots[[1]],
-                                                plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
-                                                plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
-                                                plots[[4]],
-                                                plots[[5]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
-                                                plots[[6]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
+        q` multiplot = grid.arrange(arrangeGrob(plots[[1]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                plots[[5]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                plots[[6]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
                                                 plots[[7]],
                                                 plots[[8]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
                                                 plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
                                                 nrow = 3),
                                     nrow = 1, ncol = 1,
-                                    left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), rot = 90, gp = gpar(fontsize = 140), vjust = 0.5)) `,
+                                    sub = textGrob("\n", gp = gpar(fontsize = 50)) ,
+                                    left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), rot = 90, gp = gpar(fontsize = 180), vjust = 0.5)) `,
         q` print(multiplot) `,
         q` dev.off() `,
 );
