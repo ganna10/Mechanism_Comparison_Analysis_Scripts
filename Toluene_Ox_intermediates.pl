@@ -2,6 +2,7 @@
 # plot reactions contribution to Ox production from toluene degradation in MCM v3.2, RACM2, CBM4 and CB05 mechanisms
 # Version 0: Jane Coates 25/9/2014
 # Version 1: Jane Coates 21/10/2014 including assignment of XO2 producing reactions to budget
+# Version 2: Jane Coates 10/11/2014 including HO2x production and updates to script
 
 use strict;
 use diagnostics;
@@ -11,7 +12,7 @@ use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $times = $mecca->time;
@@ -55,9 +56,9 @@ foreach my $time (@time_axis) {
 my @runs = qw( MCM_3.2_tagged RACM_tagging CBM4_tagging CB05_tagging );
 my @mechanisms = ( "(a) MCMv3.2", "(b) RACM", "(c) CBM-IV", "(d) CB05" );
 my @mech_species = qw( TOLUENE TOL TOLUENE TOLUENE );
-#my @runs = qw( RACM_tagging );
-#my @mechanisms = qw( RACM );
-#my @mech_species = qw( TOL );
+#my @runs = qw( CBM4_tagging );
+#my @mechanisms = qw( CBM-IV );
+#my @mech_species = qw( TOLUENE );
 my $index = 0;
 
 my (%families, %weights, %plot_data, %legend);
@@ -84,20 +85,17 @@ $R->run(q` library(ggplot2) `,
 );
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
-                            "CH3O2 + NO" = "#e7e85e", "MEO2 + NO" = "#e7e85e", "MO2 + NO" = "#e7e85e",
+                            "CH3O2 + NO" = "#f9c500", "MEO2 + NO" = "#f9c500", "MO2 + NO" = "#f9c500",
                             "CH3CO3 + NO" = "#8b1537", "C2O3 + NO" = "#8b1537", "ACO3 + NO" = "#8b1537",
                             "CRES + OH" = "#cc6329", "CSL + OH" = "#cc6329",
-                            "OH + TOL" = "#dc3522",
-                            "NO + TLBIPERO2" = "#9bb08f",
-                            "MCATEC1O2 + NO" = "#8c6238",
-                            "C6H5O2 + NO" = "#4c9383",
-                            "NO + TLFUO2" = "#76afca",
-                            "MECOACETO2 + NO" = "#f9c600",
-                            "MCATEC1O + O3" = "#0352cb", 
-                            "C6H5O + O3" = "#86b650", 
-                            "NPHEN1O + O3" = "#6c254f", 
+                            "OH + TOL" = "#1c3e3d",
+                            "NO + TLBIPERO2" = "#f7c56c",
+                            "TO2" = "#f3aa7f",
+                            "TLBIPERO" = "#4c9383",
+                            "HCHO + OH" = "#b569b3",
+                            "CH3O" = "#0e5c28",
+                            "CO + OH" = "#77aecc", 
                             "Consumption Others" = "#ee6738",
-                            "ETHP + NO" = "#f9c600", 
                             "KETP + NO" = "#76afca", 
                             "HC3P + NO" = "#8c6238", 
                             "OH + ONIT" = "#9bb08f", 
@@ -126,7 +124,7 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + theme(legend.key.size = unit(3.5, "cm")) ;
                                                             plot = plot + theme(legend.justification = c(0.99, 0.01)) ;
                                                             plot = plot + theme(legend.position = c(0.99, 0.01)) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-25, 15), breaks = seq(-25, 15, 5)) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5)) ;
                                                             plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
                                                             return(plot) } `,
 ); 
@@ -156,7 +154,7 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 57, height = 40) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 60, height = 46) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] , 
                                                     plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
@@ -171,73 +169,78 @@ $R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 57, height = 40) 
 $R->stop();
 
 sub get_data {
-    my ($parent, $mecca, $kpp, $species) = @_;
+    my ($parent, $mecca, $kpp, $Ox) = @_;
+    $families{"HO2x"} = [ qw( HO2 HO2NO2 )];
+    my @loop = ("HO2x", $Ox);
     
     my (%production_reaction_rates, %consumption_reaction_rates, $producers, $producer_yields, $consumers, $consumer_yields);
-    if (exists $families{$species}) { #get family reaction numbers and yields
-        $kpp->family({ 
-                name    => $species,
-                members => $families{$species},
-                weights => $weights{$species},
-        });
-        $producers = $kpp->producing($species);
-        $producer_yields = $kpp->effect_on($species, $producers);  
-        $consumers = $kpp->consuming($species);
-        $consumer_yields = $kpp->effect_on($species, $consumers);  
-    } else { #get reaction numbers and yields
-        print "No family found for $species\n";
-    }
+    foreach my $species (@loop) {
+        if (exists $families{$species}) { #get family reaction numbers and yields
+            $kpp->family({ 
+                    name    => $species,
+                    members => $families{$species},
+                    weights => $weights{$species},
+            });
+            $producers = $kpp->producing($species);
+            $producer_yields = $kpp->effect_on($species, $producers);  
+            $consumers = $kpp->consuming($species);
+            $consumer_yields = $kpp->effect_on($species, $consumers);  
+        } else { #get reaction numbers and yields
+            print "No family found for $species\n";
+        }
 
-    die "No producers found for $species\n" if (@$producers == 0);
-    die "No consumers found for $species\n" if (@$consumers == 0);
-    
-    my $prod_max = 5e6;
-    for (0..$#$producers) { #get rates for all producing reactions
-        my $reaction = $producers->[$_];
-        my ($number, $VOC) = split /_/, $reaction;
-        next unless (defined $VOC and $VOC eq $parent);
-        my $reaction_number = $kpp->reaction_number($reaction);
-        my $rate = $producer_yields->[$_] * $mecca->rate($reaction_number); 
-        next if ($rate->sum == 0); # do not include reactions that do not occur 
-        my $reaction_string = $kpp->reaction_string($reaction);
-        $reaction_string =~ s/_$VOC\b//g;
-        my($reactants, $products) = split / = /, $reaction_string;
-        if ($reactants =~ /XO2/ and $species =~ /RACM|CB/) {
-            my $operator = "XO2_" . $VOC;
-            my $op_producers = $kpp->producing($operator);
-            my $op_producer_yields = $kpp->effect_on($operator, $op_producers); 
-            die "No producers found for $operator\n" if (@$op_producers == 0);
+        die "No producers found for $species\n" if (@$producers == 0);
+        die "No consumers found for $species\n" if (@$consumers == 0);
+        
+        for (0..$#$producers) { #get rates for all producing reactions
+            my $reaction = $producers->[$_];
+            my ($number, $VOC) = split /_/, $reaction;
+            next unless (defined $VOC and $VOC eq $parent);
+            my $reaction_number = $kpp->reaction_number($reaction);
+            my $rate = $producer_yields->[$_] * $mecca->rate($reaction_number); 
+            next if ($rate->sum == 0); # do not include reactions that do not occur 
+            my $reaction_string = $kpp->reaction_string($reaction);
+            $reaction_string =~ s/_$VOC\b//g;
+            my($reactants, $products) = split / = /, $reaction_string;
+            if ($reactants =~ /XO2/ and $species =~ /RACM|CB/) {
+                my $operator = "XO2_" . $VOC;
+                my $op_producers = $kpp->producing($operator);
+                my $op_producer_yields = $kpp->effect_on($operator, $op_producers); 
+                die "No producers found for $operator\n" if (@$op_producers == 0);
 
-            for (0..$#$op_producers) { #get rates for all producing reactions
-                my $reaction = $op_producers->[$_];
-                my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-                my $reaction_number = $kpp->reaction_number($reaction);
-                my $rate = $op_producer_yields->[$_] * $mecca->rate($reaction_number); 
-                next if ($rate->sum == 0); # do not include reactions that do not occur 
-                my $reaction_string = $kpp->reaction_string($reaction);
-                $reaction_string =~ s/_(.*?)\b//;
-                my ($reactants, $products) = split / = /, $reaction_string;
+                for (0..$#$op_producers) { #get rates for all producing reactions
+                    my $reaction = $op_producers->[$_];
+                    my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
+                    my $reaction_number = $kpp->reaction_number($reaction);
+                    my $rate = $op_producer_yields->[$_] * $mecca->rate($reaction_number); 
+                    next if ($rate->sum == 0); # do not include reactions that do not occur 
+                    my $reaction_string = $kpp->reaction_string($reaction);
+                    $reaction_string =~ s/_(.*?)\b//;
+                    my ($reactants, $products) = split / = /, $reaction_string;
+                    $production_reaction_rates{$reactants} += $rate(1:$NTIME-2);
+                } 
+            } else {
                 $production_reaction_rates{$reactants} += $rate(1:$NTIME-2);
-            } 
-        } else {
-            $production_reaction_rates{$reactants} += $rate(1:$NTIME-2);
+            }
+        }
+
+        for (0..$#$consumers) { #get rates for all consuming reactions
+            my $reaction = $consumers->[$_];
+            my ($number, $VOC) = split /_/, $reaction; #remove tag from reaction number
+            next unless (defined $VOC and $VOC eq $parent);
+            my $reaction_number = $kpp->reaction_number($reaction);
+            my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
+            next if ($rate->sum == 0); # do not include reactions that do not occur 
+            my $reaction_string = $kpp->reaction_string($reaction);
+            $reaction_string =~ s/_$VOC\b//g;
+            my($reactants, $products) = split / = /, $reaction_string; 
+            $consumption_reaction_rates{$reactants} += $rate(1:$NTIME-2); 
         }
     }
 
-    for (0..$#$consumers) { #get rates for all consuming reactions
-        my $reaction = $consumers->[$_];
-        my ($number, $VOC) = split /_/, $reaction; #remove tag from reaction number
-        next unless (defined $VOC and $VOC eq $parent);
-        my $reaction_number = $kpp->reaction_number($reaction);
-        my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
-        next if ($rate->sum == 0); # do not include reactions that do not occur 
-        my $reaction_string = $kpp->reaction_string($reaction);
-        $reaction_string =~ s/_$VOC\b//g;
-        my($reactants, $products) = split / = /, $reaction_string; 
-        $consumption_reaction_rates{$reactants} += $rate(1:$NTIME-2); 
-    }
-
+    my $prod_max = 2e7;
     remove_common_processes(\%production_reaction_rates, \%consumption_reaction_rates);
+
     foreach my $reaction (sort keys %production_reaction_rates) {
         if ($production_reaction_rates{$reaction}->sum < $prod_max) {
             $production_reaction_rates{"Production Others"} += $production_reaction_rates{$reaction};
@@ -254,11 +257,11 @@ sub get_data {
 
     my $dt = $mecca->dt->at(0); #model time step
     my $parent_emissions;
-    if ($species =~ /CB/) {
+    if ($Ox =~ /CB/) {
         my $name = "TOL_TOLUENE";
         my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
         $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-    } elsif ($species =~ /RACM/) {
+    } elsif ($Ox =~ /RACM/) {
         my $name = "TOL";
         my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
         $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
