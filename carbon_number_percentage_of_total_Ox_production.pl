@@ -3,6 +3,7 @@
 # Faceting by day, x-axis is percentage and y-axis is mechanism
 # Version 0: Jane Coates 21/9/2014
 # Version 1: Jane Coates 1/10/2014 Rounding up carbon numbers to nearest integer and updating colour scheme
+# Version 2: Jane Coates 11/11/2014 adapting to local computation
 
 use strict;
 use diagnostics;
@@ -12,7 +13,7 @@ use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $times = $mecca->time;
@@ -68,9 +69,10 @@ foreach my $run (@runs) {
     my $kpp = KPP->new($eqnfile);
     my $ro2file = "$base/$run/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
+    my $carbon_file = "$base/$run/carbons.txt";
     $families{"Ox_$mechanisms[$array_index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$array_index]"} = { NO3 => 2, N2O5 => 3};
-    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run);
+    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run, $carbon_file);
     my @parents = qw( Pentane Toluene );
     foreach my $NMVOC (@parents) {
         my $parent = get_mechanism_species($NMVOC, $run);
@@ -148,6 +150,8 @@ $R->run(q` plot = ggplot(data, aes(y = Percent, x = Mechanism, fill = C.number))
         q` plot = plot + theme(axis.title.x = element_text(size = 160, face = "bold")) `,
         q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
         q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
+        q` plot = plot + theme(axis.ticks.length = unit(2, "cm")) `,
+        q` plot = plot + theme(axis.ticks.margin = unit(1, "cm")) `,
         q` plot = plot + theme(panel.grid.major = element_blank()) `,
         q` plot = plot + theme(panel.grid.minor = element_blank()) `,
         q` plot = plot + theme(legend.position = "bottom") `,
@@ -273,35 +277,13 @@ sub get_data {
 }
 
 sub get_carbons {
-    my ($run) = @_;
-    my $mechanism_base = "/work/users/jco/Mechanisms";
-    my ($file, $carbons);
-    if ($run eq "MCM_3.1_tagged_3.2rates") {
-        $file = "$mechanism_base/MCM/MCM-3.1/species_smiles.txt";
+    my ($run, $file) = @_;
+    my $carbons;
+    if ($run =~ /MCM_3\.1|MCM_3\.2/) {
         $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "MCM_3.2_tagged") {
-        $file = "$mechanism_base/MCM/MCM-3.2/smiles.out";
-        $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "CRI_tagging") {
-        $file = "$mechanism_base/CRI/CRI_v2_full/carbons.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "MOZART_tagging") {
-        $file = "$mechanism_base/MOZART/MOZART/chem_mech.in";
+    } elsif ($run =~ /MOZART/) {
         $carbons = mozart_n_carbon($file);
-    } elsif ($run eq "RADM2_tagged") {
-        $file = "$mechanism_base/RADM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM_tagging") {
-        $file = "$mechanism_base/RACM/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM2_tagged") {
-        $file = "$mechanism_base/RACM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CBM4_tagging") {
-        $file = "$mechanism_base/CBM-IV/carbons.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CB05_tagging") {
-        $file = "$mechanism_base/CB05/carbons.txt";
+    } elsif ($run =~ /CRI|RADM2|RACM|CB/) {
         $carbons = carbons_others($file);
     } else {
         print "$run doesn't match\n";

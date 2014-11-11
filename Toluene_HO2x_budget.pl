@@ -19,9 +19,9 @@ my $species = "TOLUENE";
 my $racm2_species = "TOL";
 
 #MCMv3.2 data
-my $mcm_3_2_run = "/work/users/jco/MECCA/MCM_3.2_tagged/boxmodel";
+my $mcm_3_2_run = "/local/home/coates/MECCA/MCM_3.2_tagged/boxmodel";
 my $mcm_3_2_mecca = MECCA->new($mcm_3_2_run); 
-my $mcm_3_2_eqnfile = "/work/users/jco/MECCA/MCM_3.2_tagged/gas.eqn";
+my $mcm_3_2_eqnfile = "/local/home/coates/MECCA/MCM_3.2_tagged/gas.eqn";
 my $mcm_3_2_kpp = KPP->new($mcm_3_2_eqnfile); 
 $families{'HO2x_mcm_3_2'} = [ qw(HO2 HO2NO2 ) ];
 $weights{'HO2x_mcm_3_2'} = { }; 
@@ -31,9 +31,9 @@ my ($mcm_3_2_sorted_plot_data, $mcm_3_2_legend) = sort_data_for_plot($prod_other
 my $mcm_3_2_plot_title = "(a) MCM v3.2";
 
 #cri data
-my $cri_run = "/work/users/jco/MECCA/CRI_tagging/boxmodel";
+my $cri_run = "/local/home/coates/MECCA/CRI_tagging/boxmodel";
 my $cri_mecca = MECCA->new($cri_run); 
-my $cri_eqnfile = "/work/users/jco/MECCA/CRI_tagging/gas.eqn";
+my $cri_eqnfile = "/local/home/coates/MECCA/CRI_tagging/gas.eqn";
 my $cri_kpp = KPP->new($cri_eqnfile); 
 $families{'HO2x_cri'} = [ qw( HO2 HO2NO2 ) ];
 $weights{'HO2x_cri'} = { }; 
@@ -42,9 +42,9 @@ my ($cri_sorted_plot_data, $cri_legend) = sort_data_for_plot($prod_others_max, $
 my $cri_plot_title = "(b) CRI v2";
 
 #racm2 data
-my $racm2_run = "/work/users/jco/MECCA/RACM2_tagged/boxmodel";
+my $racm2_run = "/local/home/coates/MECCA/RACM2_tagged/boxmodel";
 my $racm2_mecca = MECCA->new($racm2_run); 
-my $racm2_eqnfile = "/work/users/jco/MECCA/RACM2_tagged/gas.eqn";
+my $racm2_eqnfile = "/local/home/coates/MECCA/RACM2_tagged/gas.eqn";
 my $racm2_kpp = KPP->new($racm2_eqnfile); 
 $families{'HO2x_racm2'} = [ qw( HO2 HO2NO2 ) ];
 $weights{'HO2x_racm2'} = { }; 
@@ -253,6 +253,8 @@ sub plot { #create dataframe and then create plot
                                                       plot = plot + theme(panel.grid.minor.y = element_blank(), panel.grid.major.y = element_blank()) ;
                                                       plot = plot + theme(axis.title.y = element_blank()) ; 
                                                       plot = plot + theme(axis.title.x = element_blank()) ; 
+                                                      plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ;
+                                                      plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ;
                                                       plot = plot + theme(plot.title = element_text(size = 90, face = "bold", vjust = 0)) ; 
                                                       plot = plot + theme(legend.justification = c(0.99, 0.99), legend.position = c(0.99, 0.99)) ; 
                                                       return(plot) } `);

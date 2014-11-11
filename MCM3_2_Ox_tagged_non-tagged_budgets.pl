@@ -10,7 +10,7 @@ use MECCA;
 use KPP;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_no_tagging/boxmodel"); 
 my $NTIME = $mecca->time->nelem;
 my $times = $mecca->time;
@@ -153,6 +153,8 @@ $R->run(q` plotting = function (data, title) {   plot = ggplot(data, aes(x = tim
                                                  plot = plot + theme(legend.text = element_text(size = 40)) ;
                                                  plot = plot + theme(legend.title = element_blank()) ;
                                                  plot = plot + theme(legend.position = c(0.99, 0.99), legend.justification = c(0.99, 0.99)) ;
+                                                 plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ; 
+                                                 plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ; 
                                                  plot = plot + scale_fill_manual( limits = rev(VOC.levels), labels = my.names, values = my.colours) ;
                                                  plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8), label = scientific_10);
                                                  plot = plot + theme(legend.key = element_blank()) ;

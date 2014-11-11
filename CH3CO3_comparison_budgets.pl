@@ -52,12 +52,12 @@ foreach my $time (@time_axis) {#map to day and night
     }
 }
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
-my @base_name = qw( CH3CO3 CH3CO3 CH3CO3 CH3CO3 ACO3 ACO3 ACO3 C2O3 C2O3 );
-#my @runs = qw( RACM_tagging ) ;
-#my @mechanisms = qw( RACM );
-#my @base_name = qw( ACO3 );
+#my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
+#my @mechanisms = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
+#my @base_name = qw( CH3CO3 CH3CO3 CH3CO3 CH3CO3 ACO3 ACO3 ACO3 C2O3 C2O3 );
+my @runs = qw( MCM_3.2_tagged MOZART_tagging ) ;
+my @mechanisms = ( "(a) MCM v3.2", "(b) MOZART-4" );
+my @base_name = qw( CH3CO3 CH3CO3 );
 my $array_index = 0;
 
 my (%families, %weights, %plot_data, %legend);
@@ -112,18 +112,20 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + theme(legend.justification = c(0.99, 0.99)) ;
                                                             plot = plot + theme(panel.grid.minor = element_blank()) ;
                                                             plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 140, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 90, face = "bold")) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 60)) ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
                                                             plot = plot + theme(axis.ticks.length = unit(2.5, "cm")) ;
                                                             plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 130)) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 40)) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(legend.key.size = unit(6, "cm")) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-7e8, 7e8), breaks = seq(-7e8, 7e8, 2e8)) ;
+                                                            plot = plot + theme(legend.key.size = unit(4, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-5e8, 5e8), breaks = seq(-5e8, 5e8, 1e8)) ;
                                                             plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
                                                             return(plot) } `,
 );
@@ -151,19 +153,24 @@ foreach my $run (sort keys %plot_data) {
     #print "$run\n$p\n";
 }
 
-$R->run(q` CairoPDF(file = "CH3CO3_budget_comparison.pdf", width = 141, height = 200) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
-                                                    plots[[2]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
-                                                    plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[6]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[7]], 
-                                                    plots[[8]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    nrow = 3), 
+$R->run(q` CairoPDF(file = "CH3CO3_budget_comparison.pdf", width = 57, height = 40) `,
+#        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+#                                                    plots[[2]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+#                                                    plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    plots[[6]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    plots[[7]], 
+#                                                    plots[[8]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+#                                                    nrow = 3), 
+#                                       nrow = 1, ncol = 1,
+#                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 180), vjust = 0.5) ) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
+                                                    plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    nrow = 1), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 180), vjust = 0.5) ) `,
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 85), vjust = 0.5) ) `,
         q` print(multiplot) `,
         q` dev.off() `,
 );
