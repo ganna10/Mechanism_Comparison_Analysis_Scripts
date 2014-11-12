@@ -3,6 +3,7 @@
 # Version 0: Jane Coates 24/06/2014
 # Version 1: Jane Coates 22/09/2014 removed y-axis ticks in CRI plot, changed fill order
 # Version 2: Jane Coates 26/09/2014 including RACM2
+# Version 3: Jane Coates 12/11/2014 removing consumption
 
 use strict;
 use diagnostics;
@@ -168,25 +169,8 @@ sub sort_data_for_plot { #create hash with production of the reactions
     my %production_rates = %$production_rates;
     my %consumption_rates = %$consumption_rates;
     my (@production_others, @consumption_others, @sorted_plot_data); 
-    my $cons_others_max = -$prod_others_max;
-
-    foreach my $item (keys %consumption_rates) {#sort consumption
-        if ($consumption_rates{$item}->sum > $cons_others_max) { #get consumption others
-            $consumption_rates{'Consumption Others'} += $consumption_rates{$item};
-            delete $consumption_rates{$item};
-        }
-    }
     
     my $sort_function = sub { $_[0]->sum };
-    my @sorted_cons = reverse sort { &$sort_function($consumption_rates{$b}) <=> &$sort_function($consumption_rates{$a}) } keys %consumption_rates;
-
-    foreach (@sorted_cons) { #sum up rates of reactions, starting with reaction with lowest sum, consumption others added separately 
-        next if ($_ eq 'Consumption Others');
-        push @sorted_plot_data, { $_ => $consumption_rates{$_} };
-    }
-
-    push @sorted_plot_data, { 'Consumption Others' => $consumption_rates{'Consumption Others'} } if (defined $consumption_rates{'Consumption Others'}); #add Consumption Others to the beginning 
-    
     foreach my $item (keys %production_rates) {#sort production
         if ($production_rates{$item}->sum < $prod_others_max) { #get production others
             $production_rates{'Production Others'} += $production_rates{$item};
@@ -240,9 +224,8 @@ sub plot { #create dataframe and then create plot
     #general plot R function
     $R->run(q` mech.plot = function(data, plot.title) {plot = ggplot(data = data, aes(x = time, y = rate, fill = Reaction)) ; 
                                                        plot = plot + geom_bar(data = subset(data, rate > 0), stat = "identity", width = 0.6) ;
-                                                      plot = plot + geom_bar(data = subset(data, rate < 0), stat = "identity", width = 0.6) ;
                                                       plot = plot + ggtitle(plot.title); 
-                                                      plot = plot + scale_y_continuous(limits = c(-1, 18), breaks = seq(-1, 18, 2)) ;
+                                                      plot = plot + scale_y_continuous(limits = c(0, 18), breaks = seq(0, 18, 2)) ;
                                                       plot = plot + theme_bw() ; 
                                                       plot = plot + theme(legend.key.size = unit(4, "cm")) ; 
                                                       plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) ; 
@@ -277,7 +260,7 @@ sub plot { #create dataframe and then create plot
             q` mcm3.2.data = mcm3.2.data[1:7,] `,
             q` mcm3.2.data = melt(data = mcm3.2.data, id = names(mcm3.2.data)[1], measured = names(mcm3.2.data)[-1] ) `, 
             q` colnames(mcm3.2.data) = c("time", "Reaction", "rate") `, 
-            q` mcm3.2.data$Reaction = factor(mcm3.2.data$Reaction, levels = c("Consumption Others", "CO + OH", "HCHO + OH", "HCHO + hv", "GLYOX + OH", "CH3O", "TLBIPERO", "OH + TOLUENE", "MGLYOX + hv", "Production Others")) `,
+            q` mcm3.2.data$Reaction = factor(mcm3.2.data$Reaction, levels = c("CO + OH", "HCHO + OH", "HCHO + hv", "GLYOX + OH", "CH3O", "TLBIPERO", "OH + TOLUENE", "MGLYOX + hv", "Production Others")) `,
             q` mcm3.2.data = ddply( mcm3.2.data, .(Reaction)) `, 
     );
     $R->run(q` mcm3.2.plot = mech.plot(mcm3.2.data, mcm3.2.plot.title) `);
@@ -299,7 +282,7 @@ sub plot { #create dataframe and then create plot
             q` cri.data = cri.data[1:7,] `,
             q` cri.data = melt(data = cri.data, id = names(cri.data)[1], measured = names(cri.data)[-1] ) `, 
             q` colnames(cri.data) = c("time", "Reaction", "rate") `, 
-            q` cri.data$Reaction = factor(cri.data$Reaction, levels = c("Consumption Others", "CO + OH", "HCHO + OH", "HCHO + hv", "CARB3 + OH", "CH3O2 + NO", "C2H5O2 + NO", "HOCH2CH2O2 + NO", "NO + RN10O2", "CARB3 + hv", "Production Others")) `, 
+            q` cri.data$Reaction = factor(cri.data$Reaction, levels = c("CO + OH", "HCHO + OH", "HCHO + hv", "CARB3 + OH", "CH3O2 + NO", "C2H5O2 + NO", "HOCH2CH2O2 + NO", "NO + RN10O2", "CARB3 + hv", "Production Others")) `, 
             q` cri.data = ddply( cri.data, .(Reaction)) `, 
     );
      $R->run(q` cri.plot = mech.plot(cri.data, cri.plot.title) `); 
@@ -321,15 +304,15 @@ sub plot { #create dataframe and then create plot
             q` racm2.data = racm2.data[1:7,] `,
             q` racm2.data = melt(data = racm2.data, id = names(racm2.data)[1], measured = names(racm2.data)[-1] ) `, 
             q` colnames(racm2.data) = c("time", "Reaction", "rate") `, 
-            q` racm2.data$Reaction = factor(racm2.data$Reaction, levels = c("Consumption Others", "CO + OH", "HCHO + OH", "HCHO + hv", "MO2 + NO", "ETHP + NO", "EPX + O3", "TR2", "Production Others")) `, 
+            q` racm2.data$Reaction = factor(racm2.data$Reaction, levels = c("CO + OH", "HCHO + OH", "HCHO + hv", "MO2 + NO", "ETHP + NO", "EPX + O3", "TR2", "Production Others")) `, 
             q` racm2.data = ddply( racm2.data, .(Reaction)) `, 
     );
      $R->run(q` racm2.plot = mech.plot(racm2.data, racm2.plot.title) `); 
  
      #colours
-     $R->run(q` mcm.colours = c("Production Others" = "#696537", "CO + OH" = "#f9c600", "HCHO + hv" = "#76afca", "HCHO + OH" = "#dc3522", "GLYOX + NO" = "#8c6238", "MGLYOX + hv" = "#9bb08f", "CH3CO3 + NO" = "#8b1537", "CH3O2 + NO" = "#e7e85e", "OH + TOLUENE" = "#0352cb", "TLBIPERO" = "#6c254f", "CH3O" = "#86b650", "GLYOX + OH" = "#8d1435", "Consumption Others" = "#ee6738") `,
-             q` cri.colours = c("Production Others" = "#696537", "CO + OH" = "#f9c600", "HCHO + hv" = "#76afca", "HCHO + OH" = "#dc3522", "CH3CO3 + NO" = "#8b1537", "HOCH2CH2O2 + NO" = "#8c6238", "CH3O2 + NO" = "#e7e85e", "C2H5O2 + NO" = "#9bb08f", "NO + RA16O2" = "#0e5c28", "CARB3 + hv" = "#76afca", "CARB3 + OH" = "#8d1435", "NO + RN10O2" = "#b569b3", "Consumption Others" = "#ee6738") `,
-             q` racm2.colours = c("Production Others" = "#696537", "CO + OH" = "#f9c600", "HCHO + hv" = "#76afca", "HCHO + OH" = "#dc3522", "EPX + O3" = "#0c3f78", "MO2 + NO" = "#e7e85e", "ETHP + NO" = "#9bb08f", "TR2" = "#cc6329", "Consumption Others" = "#ee6738") `,
+     $R->run(q` mcm.colours = c("Production Others" = "#696537", "CO + OH" = "#0e5c28", "HCHO + hv" = "#dc3522", "HCHO + OH" = "#f9c500", "GLYOX + NO" = "#8c6238", "MGLYOX + hv" = "#9bb08f", "CH3CO3 + NO" = "#8b1537", "CH3O2 + NO" = "#e7e85e", "OH + TOLUENE" = "#0352cb", "TLBIPERO" = "#6c254f", "CH3O" = "#86b650", "GLYOX + OH" = "#8d1435", "Consumption Others" = "#ee6738") `,
+             q` cri.colours = c("Production Others" = "#696537", "CO + OH" = "#0e5c28", "HCHO + hv" = "#dc3522", "HCHO + OH" = "#f9c500", "CH3CO3 + NO" = "#8b1537", "HOCH2CH2O2 + NO" = "#8c6238", "CH3O2 + NO" = "#e7e85e", "C2H5O2 + NO" = "#9bb08f", "NO + RA16O2" = "#0e5c28", "CARB3 + hv" = "#76afca", "CARB3 + OH" = "#8d1435", "NO + RN10O2" = "#b569b3", "Consumption Others" = "#ee6738") `,
+             q` racm2.colours = c("Production Others" = "#696537", "CO + OH" = "#0e5c28", "HCHO + hv" = "#dc3522", "HCHO + OH" = "#f9c500", "EPX + O3" = "#0c3f78", "MO2 + NO" = "#e7e85e", "ETHP + NO" = "#9bb08f", "TR2" = "#cc6329", "Consumption Others" = "#ee6738") `,
      );
 
      #multiplot
