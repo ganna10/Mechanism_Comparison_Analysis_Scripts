@@ -252,7 +252,7 @@ sub plot { #create dataframe and then create plot
             q` plot = plot + theme(axis.ticks.length = unit(2, "cm")) `, 
             q` plot = plot + theme(axis.ticks.margin = unit(1, "cm")) `, 
             q` plot = plot + theme(legend.position = "bottom", legend.title = element_blank()) `,
-            q` plot = plot + scale_y_continuous(limits=c(0, 1.8e9), breaks=seq(0, 1.8e9, 2e8), label = scientific_10)`,
+            q` plot = plot + scale_y_continuous(limits=c(0, 1.6e9), breaks=seq(0, 1.6e9, 2e8), label = scientific_10)`,
             q` plot = plot + theme(legend.key = element_blank()) `,
             q` plot = plot + theme(legend.text = element_text(size = 140)) `,
             q` plot = plot + scale_fill_manual( limits = VOC.levels, values = my.colours, guide = guide_legend(nrow = 2)) `,
