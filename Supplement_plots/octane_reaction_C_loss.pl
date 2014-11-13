@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during octane degradation in each mechanism
 # Version 0: Jane Coates 25/9/2014
+# Version 1: Jane Coates 13/11/2014 re-fining plot for supplement
 
 use strict;
 use diagnostics;
@@ -10,7 +11,7 @@ use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
 my $times = $mecca->time;
 my $NTIME = $mecca->time->nelem;
@@ -64,11 +65,12 @@ foreach my $run (@runs) {
     my $mecca = MECCA->new($boxmodel); 
     my $eqnfile = "$base/$run/gas.eqn";
     my $kpp = KPP->new($eqnfile);
+    my $carbons_file = "$base/$run/carbons.txt";
     my $ro2file = "$base/$run/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
     $families{"Ox_$mechanisms[$array_index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$array_index]"} = { NO3 => 2, N2O5 => 3};
-    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run);
+    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run, $carbons_file);
     my @VOCs = qw(Octane);
     foreach my $NMVOC (@VOCs) {
         my $parent = get_mechanism_species($NMVOC, $run);
@@ -124,9 +126,8 @@ $R->run(q` my.colours = c(  "CB05" = "#0352cb",
 
 $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `), #scientific label format for y-axis
 $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = row.total, colour = Mechanism, group = Mechanism)) `,
-        q` plot = plot + geom_point(size = 3) `,
-        q` plot = plot + geom_line(size = 2) `,
-        q` plot = plot + facet_grid(. ~ VOC, scales = "free") `,
+        q` plot = plot + geom_point(size = 9) `,
+        q` plot = plot + geom_line(size = 5) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + ylab(expression(bold(paste("Net Carbon Loss Rate (molecules ", cm^-3, s^-1, ")")))) `,
         q` plot = plot + scale_y_continuous(limits = c(-1e7, 0), breaks = seq(-1e7, 0, 2e6), label = scientific_10) `,
@@ -134,18 +135,20 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = row.total, colour =
         q` plot = plot + theme(panel.grid.minor = element_blank())`,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(axis.title.y = element_text(size = 20)) `,
+        q` plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) `,
+        q` plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) `,
+        q` plot = plot + theme(axis.title.y = element_text(size = 50)) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 20)) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 18)) `,
-        q` plot = plot + theme(legend.text = element_text(size = 18)) `,
-        q` plot = plot + theme(legend.key.size = unit(3, "cm")) `, 
-        q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(strip.text = element_text(size = 30, face = "bold")) `,
+        q` plot = plot + theme(axis.text.x = element_text(size = 40)) `,
+        q` plot = plot + theme(axis.text.y = element_text(size = 35)) `,
+        q` plot = plot + theme(legend.position = c(0.99, 0.01)) `,
+        q` plot = plot + theme(legend.justification = c(0.99, 0.01)) `,
+        q` plot = plot + theme(legend.text = element_text(size = 35)) `,
+        q` plot = plot + theme(legend.key.size = unit(4, "cm")) `, 
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "octane_reactive_carbon_loss.pdf", width = 30, height = 20) `,
+$R->run(q` CairoPDF(file = "octane_reactive_carbon_loss.pdf", width = 40, height = 28) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -238,35 +241,13 @@ sub get_species_carbon {
 }
 
 sub get_carbons {
-    my ($run) = @_;
-    my $mechanism_base = "/work/users/jco/Mechanisms";
-    my ($file, $carbons);
-    if ($run eq "MCM_3.1_tagged_3.2rates") {
-        $file = "$mechanism_base/MCM/MCM-3.1/species_smiles.txt";
+    my ($run, $file) = @_;
+    my $carbons;
+    if ($run =~ /MCM/){
         $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "MCM_3.2_tagged") {
-        $file = "$mechanism_base/MCM/MCM-3.2/smiles.out";
-        $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "CRI_tagging") {
-        $file = "$mechanism_base/CRI/CRI_v2_full/carbons.txt";
-        $carbons = carbons_others($file);
     } elsif ($run eq "MOZART_tagging") {
-        $file = "$mechanism_base/MOZART/MOZART/chem_mech.in";
         $carbons = mozart_n_carbon($file);
-    } elsif ($run eq "RADM2_tagged") {
-        $file = "$mechanism_base/RADM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM_tagging") {
-        $file = "$mechanism_base/RACM/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM2_tagged") {
-        $file = "$mechanism_base/RACM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CBM4_tagging") {
-        $file = "$mechanism_base/CBM-IV/carbons.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CB05_tagging") {
-        $file = "$mechanism_base/CB05/carbons.txt";
+    } elsif ($run =~ /CRI|RADM2|RACM|CB/) {
         $carbons = carbons_others($file);
     } else {
         print "$run doesn't match\n";

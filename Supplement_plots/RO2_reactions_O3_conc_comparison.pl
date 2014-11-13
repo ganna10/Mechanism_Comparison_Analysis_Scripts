@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 # Compare O3 concentration time series when with and without permutation reactions
 # Version 0: Jane Coates 20/8/2014
+####### run from work servers as non-perm and perm model runs are not on local drive#################
 
 use strict;
 use diagnostics;
