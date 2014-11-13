@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # analysis of rate of reactive carbon loss during toluene degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
+# Version 1: Jane Coates 14/11/2014 updates to include in supplement
 
 use strict;
 use diagnostics;
@@ -10,7 +11,7 @@ use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
-my $base = "/work/users/jco/MECCA";
+my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
 my $times = $mecca->time;
 my $NTIME = $mecca->time->nelem;
@@ -65,11 +66,12 @@ foreach my $run (@runs) {
     my $mecca = MECCA->new($boxmodel); 
     my $eqnfile = "$base/$run/gas.eqn";
     my $kpp = KPP->new($eqnfile);
+    my $carbon_file = "$base/$run/carbons.txt";
     my $ro2file = "$base/$run/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
     $families{"Ox_$mechanisms[$array_index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanisms[$array_index]"} = { NO3 => 2, N2O5 => 3};
-    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run);
+    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run, $carbon_file);
     my $parent = get_mechanism_species($NMVOC, $run);
     ($plot_data{$mechanisms[$array_index]}, $legend{$mechanisms[$array_index]}) = get_data($kpp, $mecca, $mechanisms[$array_index], $n_carbon{"Ox_$mechanisms[$array_index]"}, $parent);
     $array_index++;
@@ -85,31 +87,31 @@ $R->run(q` library(ggplot2) `,
 );
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
-                            "Consumption Others" = "#1c3e3d",
-                            "C2O3 + NO = MEO2 + NO2" = "#8c1531", "C2O3 + NO = HCHO + HO2 + NO2 + XO2" = "#8c1531", "CH3CO3 + NO = CH3O2 + NO2" = "#8c1531", "CH3CO3 + NO = CH3O2 + CO2 + NO2" = "#8c1531", "ACO3 + NO = MO2 + NO2" = "#8c1531",
-                            "OH + RA16NO3 = CARB3 + NO2 + UDCARB11" = "#6c254f",
-                            "NO + RA16O2 = CARB6 + HO2 + NO2 + UDCARB8" = "#8ed6d2",
-                            "NO + RA16O2 = CARB3 + HO2 + NO2 + UDCARB11" = "#e7e85e",
-                            "CSL + OH = 0.85 ADDC + 0.05 HO2 + 0.1 PHO + 0.05 XO2" = "#0e5c28","CSL + OH = 0.1 HO2 + 0.9 OHOP\n+ 0.9 TCO3 + 0.9 XO2" = "#0e5c28", "CRES + OH = 0.4 CRO + 0.6 HO2 + 0.3 OPEN + 0.6 XO2" = "#0e5c28",
-                            "OH + TOL = 0.36 CRES + 0.44 HO2 + 0.56 TO2 + 0.08 XO2" = "#f9c500", "OH + TOLUENE = .25 CRESOL\n+ .25 HO2 + .7 TOLO2" = "#f9c500", "OH + TOL = 0.9 ADDT + 0.1 HO2 + 0.1 XO2" = "#f9c500","OH + TOL = 0.25 CSL + 0.25 HO2 + 0.75 TOLP" = "#f9c500",
-                            "NO + TO2 = 0.9 HO2 + 0.9 NO2 + 0.9 OPEN" = "#898989",
-                            "NO + TOLO2 = .9 BIGALD + .45 CH3COCHO\n+ .45 GLYOXAL + .9 HO2 + .9 NO2" = "#a67c52",
-                            "NO + RCO3 = ETHP + NO2" = "#86b650",
-                            "GLYOXAL + OH = CO + CO2 + HO2" = "#77aecc", 
-                            "NO2 + XOH = .7 BIGALD + .7 HO2 + .7 NO2" = "#f7c56c",
-                            "C2H5CO3 + NO = C2H5O2 + NO2" = "#f3aa7f",
-                            "HC3P + NO = .504 ACD + .165 ACT + .132 ALD\n+ .048 ETHP + .660 HO2 + .042 MEK + .131 MO2\n+ .935 NO2 + .065 ONIT + .089 XO2" = "#dc3522", "HC3P + NO = 0.233 ALD + 0.048 ETHP + 0.063 GLY\n+ 0.047 HCHO + 0.742 HO2 + 0.623 KET + 0.15 MO2\n+ 0.941 NO2 + 0.059 ONIT + 0.048 XO2" = "#dc3522",
-                            "BIGALD + hv = .13 CH3CO3 + .18 CH3COCHO\n+ .45 CO + .13 GLYOXAL + .56 HO2" = "#9bb18d",
-                            "NO + TCO3 = 0.05 ACO3 + 0.95 CO + 0.89 GLY\n+ 0.92 HO2 + 0.11 MGLY + NO2 + 2 XO2" = "#58691b",
-                            "KETP + NO = HO2 + MGLY + NO" = "#ef6638", "KETP + NO = 0.23 ACO3 + 0.46 ALD + 0.77 HO2\n+ 0.54 MGLY + NO2 + 0.16 XO2" = "#ef6638",
-                            "NO + TOLP = 0.7 DCB + 0.16 GLY\n+ 0.17 MGLY + HO2 + NO2" = "#c9a415",
-                            "DCB2 + O3 = 1.5 CO + 0.5 CO2 + 0.7 DCB1\n+ 0.05 GLY + 0.05 HCHO + HO2 + 0.08 MGLY\n+ 0.05 OH + 0.65 OP2 + 0.6 RCO3 + 0.6 XO2" = "#0352cb",
-                            "DCB2 + OH = 0.33 CO + 0.1 GLY + 0.52 HO2\n+ 0.13 MEK + 0.01 MGLY + 0.78 OP2" = "#4c9383",
-                            "EPX + O3 = 0.85 BALD + 1.5 CO + 0.5 CO2\n+ GLY + 1.5 HO2 + 0.05 OH" = "#6d6537",
-                            "TO2 = CRES + HO2" = "#1c3e3d",
-                            "OPEN + hv = C2O3 + CO + HO2" = "#ae4901",
-                            "OH + ONIT = H2O + HC3P + NO2" = "#58691b", 
-                            "EPX + OH = ALD + CO + HO2 + XO2" = "#ba8b01") `,
+                            "Consumption Others" = "#cc6329",
+                            "C2O3 + NO" = "#6c254f", "CH3CO3 + NO" = "#6c254f", "ACO3 + NO" = "#6c254f",
+                            "TO2" = "#dc3522", 
+                            "C2H5CO3 + NO" = "#0c3f78",
+                            "CO2H3CO3 + NO" = "#8ed6d2",
+                            "HOC2H4CO3 + NO" = "#f9c500", 
+                            "HCOCO3 + NO" = "#623812",
+                            "OH + RA16NO3" = "#86b650",
+                            "NO + RCO3" = "#ef6638",
+                            "HC3P + NO" = "#b569b3", 
+                            "KETP + NO" = "#ba8b01", 
+                            "OH + ONIT" = "#58691b",
+                            "CSL + OH" = "#0352cb", "CRES + OH" = "#0352cb",
+                            "OH + TOL" = "#f9c500", "OH + TOLUENE" = "#f9c500", 
+                            "NO + TO2" = "#0e5c28", "NO + TOLO2" = "#0e5c28", "NO + TOLP" = "#0e5c28", "NO + RA16O2" = "#0e5c28",
+                            "GLYOXAL + OH" = "#77aecc", 
+                            "NO2 + XOH" = "#cc6329",
+                            "BIGALD + hv" = "#1c3e3d",
+                            "NO + TCO3" = "#c9a415",
+                            "DCB2 + O3" = "#8c1531",
+                            "DCB2 + OH" = "#4c9383",
+                            "EPX + O3" = "#f7c56c",
+                            "ADDC + NO" = "#000000",
+                            "OPEN + hv" = "#1b695b",
+                            "EPX + OH" = "#898989") `,
 );
 
 $R->run(q` plotting = function (data, mechanism, legend) {  plot = ggplot(data, aes(x = Time, y = Carbon.loss.rate, fill = Reaction)) ;
@@ -123,14 +125,16 @@ $R->run(q` plotting = function (data, mechanism, legend) {  plot = ggplot(data, 
                                                             plot = plot + theme(legend.key = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + theme(legend.position = c(0.99, 0.0)) ;
-                                                            plot = plot + theme(legend.justification = c(0.99, 0.0)) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 80)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 80)) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 140, face = "bold")) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 67)) ;
-                                                            plot = plot + theme(legend.key.size = unit(6.5, "cm")) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-2e8, 3e7), breaks = seq(-2e8, 3e7, 1e7)) ;
+                                                            plot = plot + theme(legend.position = c(0.99, 0.01)) ;
+                                                            plot = plot + theme(legend.justification = c(0.99, 0.01)) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 150, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 140)) ;
+                                                            plot = plot + theme(legend.key.size = unit(7, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
+                                                            plot = plot + theme(axis.ticks.length = unit(2, "cm")) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-2.4e8, 3e7), breaks = seq(-2.4e8, 3e7, 2e7)) ;
                                                             plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
                                                             return(plot) } `);
 
@@ -171,7 +175,7 @@ $R->run(q` CairoPDF(file = "toluene_reactive_carbon_loss.pdf", width = 141, heig
                                                     plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 140), vjust = 0.5) ) `,
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 200), vjust = 0.5) ) `,
         q` print(multiplot) `,
         q` dev.off() `,
 );
@@ -200,8 +204,6 @@ sub get_data {
 
         die "No producers found for $family\n" if (@$producers == 0);
         
-        my $prod_others_max = 6e6;
-        my $max_string_width = 27;
         for (0..$#$producers) { #get rates for all producing reactions
             my $reaction = $producers->[$_];
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
@@ -214,82 +216,28 @@ sub get_data {
             my $reaction_number = $kpp->reaction_number($reaction);
             my $rate = $net_carbon * $mecca->rate($reaction_number); 
             next if ($rate->sum == 0); # do not include reactions that do not occur 
-            $reaction_string =~ s/(.{1,$max_string_width})/$1\n/gs;
-            $reaction_string =~ s/\n$//;
-            $reaction_string = string_mapping($reaction_string);
+            my ($reactants, $products) = split / = /, $reaction_string;
             next if (exists $carbon_loss_rate{$reaction_string});
-            if ($rate->sum < $prod_others_max and $rate->sum > 0) {
-                $carbon_gain_rate{"Production Others"} += $rate(1:$NTIME-2);
-            } elsif ($rate->sum > -$prod_others_max and $rate->sum < 0) {
-                $carbon_loss_rate{"Consumption Others"} += $rate(1:$NTIME-2);
-            } elsif ($rate->sum > 0) {
-                $carbon_gain_rate{$reaction_string} += $rate(1:$NTIME-2);
+            if ($rate->sum > 0) {
+                $carbon_gain_rate{$reactants} += $rate(1:$NTIME-2);
             } else {
-                $carbon_loss_rate{$reaction_string} += $rate(1:$NTIME-2);
+                $carbon_loss_rate{$reactants} += $rate(1:$NTIME-2);
             }
         }
     }
-
-    sub string_mapping {
-        my ($string) = @_;
-        if ($string =~ /OH \+ RA16NO3/) {
-            $string = "OH + RA16NO3 = CARB3 + NO2 + UDCARB11";
-        } elsif ($string =~ /HC3P \+ NO = \.504 ACD/) {
-            $string = "HC3P + NO = .504 ACD + .165 ACT + .132 ALD\n+ .048 ETHP + .660 HO2 + .042 MEK + .131 MO2\n+ .935 NO2 + .065 ONIT + .089 XO2";
-        } elsif ($string =~ /NO \+ RA16O2 = CARB6/) {
-            $string = "NO + RA16O2 = CARB6 + HO2 + NO2 + UDCARB8";
-        } elsif ($string =~ /NO \+ RA16O2 = CARB3/) {
-            $string = "NO + RA16O2 = CARB3 + HO2 + NO2 + UDCARB11";
-        } elsif ($string =~ /OH \+ ONIT/) {
-            $string = "OH + ONIT = H2O + HC3P + NO2";
-        } elsif ($string =~ /C2O3 \+ NO = HCHO/) {
-            $string = "C2O3 + NO = HCHO + HO2 + NO2 + XO2";
-        } elsif ($string =~ /CSL \+ OH = 0\.85 ADDC/) {
-            $string = "CSL + OH = 0.85 ADDC + 0.05 HO2 + 0.1 PHO + 0.05 XO2";
-        } elsif ($string =~ /CSL \+ OH = 0\.10 HO2/) {
-            $string = "CSL + OH = 0.1 HO2 + 0.9 OHOP\n+ 0.9 TCO3 + 0.9 XO2";
-        } elsif ($string =~ /CRES \+ OH/) {
-            $string = "CRES + OH = 0.4 CRO + 0.6 HO2 + 0.3 OPEN + 0.6 XO2";
-        } elsif ($string =~  /OH \+ TOL = 0\.36 CRES|OH \+ TOL = 0\.360 CRES/) {
-            $string = "OH + TOL = 0.36 CRES + 0.44 HO2 + 0.56 TO2 + 0.08 XO2";
-        } elsif ($string =~ /OH \+ TOLUENE/) {
-            $string = "OH + TOLUENE = .25 CRESOL\n+ .25 HO2 + .7 TOLO2";
-        } elsif ($string =~ /CH3CO3 \+ NO = CH3O2 \+ CO2/) {
-            $string = "CH3CO3 + NO = CH3O2 + CO2 + NO2";
-        } elsif ($string =~ /OH \+ TOL = 0\.90 ADDT/) {
-            $string = "OH + TOL = 0.9 ADDT + 0.1 HO2 + 0.1 XO2";
-        } elsif ($string =~ /KETP \+ NO = HO2/) {
-            $string = "KETP + NO = HO2 + MGLY + NO";
-        } elsif ($string =~ /OH \+ TOL = 0\.25 CSL/) {
-            $string = "OH + TOL = 0.25 CSL + 0.25 HO2 + 0.75 TOLP";
-        } elsif ($string =~ /KETP \+ NO = 0\.23 ACO3/) {
-            $string = "KETP + NO = 0.23 ACO3 + 0.46 ALD + 0.77 HO2\n+ 0.54 MGLY + NO2 + 0.16 XO2";
-        } elsif ($string =~ /HC3P \+ NO = 0\.233 ALD/) {
-            $string = "HC3P + NO = 0.233 ALD + 0.048 ETHP + 0.063 GLY\n+ 0.047 HCHO + 0.742 HO2 + 0.623 KET + 0.15 MO2\n+ 0.941 NO2 + 0.059 ONIT + 0.048 XO2";
-        } elsif ($string =~ /NO \+ TO2 = 0\.9 HO2/) {
-            $string = "NO + TO2 = 0.9 HO2 + 0.9 NO2 + 0.9 OPEN";
-        } elsif ($string =~ /NO \+ TOLO2/) {
-            $string = "NO + TOLO2 = .9 BIGALD + .45 CH3COCHO\n+ .45 GLYOXAL + .9 HO2 + .9 NO2";
-        } elsif ($string =~ /GLYOXAL \+ OH/) {
-            $string = "GLYOXAL + OH = CO + CO2 + HO2";
-        } elsif ($string =~ /NO2 \+ XOH/) {
-            $string = "NO2 + XOH = .7 BIGALD + .7 HO2 + .7 NO2";
-        } elsif ($string =~ /BIGALD \+ hv/) {
-            $string ="BIGALD + hv = .13 CH3CO3 + .18 CH3COCHO\n+ .45 CO + .13 GLYOXAL + .56 HO2";
-        } elsif ($string =~ /NO \+ TCO3/) {
-            $string = "NO + TCO3 = 0.05 ACO3 + 0.95 CO + 0.89 GLY\n+ 0.92 HO2 + 0.11 MGLY + NO2 + 2 XO2";
-        } elsif ($string =~ /NO \+ TOLP/) {
-            $string = "NO + TOLP = 0.7 DCB + 0.16 GLY\n+ 0.17 MGLY + HO2 + NO2";
-        } elsif ($string =~ /DCB2 \+ O3/) {
-            $string = "DCB2 + O3 = 1.5 CO + 0.5 CO2 + 0.7 DCB1\n+ 0.05 GLY + 0.05 HCHO + HO2 + 0.08 MGLY\n+ 0.05 OH + 0.65 OP2 + 0.6 RCO3 + 0.6 XO2";
-        } elsif ($string =~ /DCB2 \+ OH/) {
-            $string = "DCB2 + OH = 0.33 CO + 0.1 GLY + 0.52 HO2\n+ 0.13 MEK + 0.01 MGLY + 0.78 OP2";
-        } elsif ($string =~ /EPX \+ O3/) {
-            $string = "EPX + O3 = 0.85 BALD + 1.5 CO + 0.5 CO2\n+ GLY + 1.5 HO2 + 0.05 OH";
-        } elsif ($string =~ /EPX \+ OH/) {
-            $string = "EPX + OH = ALD + CO + HO2 + XO2";
+    my $others_max = 6e6;
+    foreach my $reaction (keys %carbon_gain_rate) {
+        if ($carbon_gain_rate{$reaction}->sum < $others_max) {
+            $carbon_gain_rate{"Production Others"} += $carbon_gain_rate{$reaction};
+            delete $carbon_gain_rate{$reaction};
         }
-        return $string;
+    }
+
+    foreach my $reaction (keys %carbon_loss_rate) {
+        if ($carbon_loss_rate{$reaction}->sum > -$others_max) {
+            $carbon_loss_rate{"Consumption Others"} += $carbon_loss_rate{$reaction};
+            delete $carbon_loss_rate{$reaction};
+        }
     }
 
     my $sort_function = sub { $_[0]->sum };
@@ -368,35 +316,13 @@ sub get_species_carbon {
 }
 
 sub get_carbons {
-    my ($run) = @_;
-    my $mechanism_base = "/work/users/jco/Mechanisms";
-    my ($file, $carbons);
-    if ($run eq "MCM_3.1_tagged_3.2rates") {
-        $file = "$mechanism_base/MCM/MCM-3.1/species_smiles.txt";
+    my ($run, $file) = @_;
+    my $carbons;
+    if ($run =~ /MCM/) {
         $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "MCM_3.2_tagged") {
-        $file = "$mechanism_base/MCM/MCM-3.2/smiles.out";
-        $carbons = mcm_n_carbon($file);
-    } elsif ($run eq "CRI_tagging") {
-        $file = "$mechanism_base/CRI/CRI_v2_full/carbons.txt";
-        $carbons = carbons_others($file);
     } elsif ($run eq "MOZART_tagging") {
-        $file = "$mechanism_base/MOZART/MOZART/chem_mech.in";
         $carbons = mozart_n_carbon($file);
-    } elsif ($run eq "RADM2_tagged") {
-        $file = "$mechanism_base/RADM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM_tagging") {
-        $file = "$mechanism_base/RACM/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "RACM2_tagged") {
-        $file = "$mechanism_base/RACM2/carbon_numbers.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CBM4_tagging") {
-        $file = "$mechanism_base/CBM-IV/carbons.txt";
-        $carbons = carbons_others($file);
-    } elsif ($run eq "CB05_tagging") {
-        $file = "$mechanism_base/CB05/carbons.txt";
+    } elsif ($run =~ /CRI|RADM2|RACM|CB/) {
         $carbons = carbons_others($file);
     } else {
         print "$run doesn't match\n";

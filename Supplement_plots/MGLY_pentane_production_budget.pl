@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Plot MGLY production and consumption budgets for all mechanisms from pentane analysis
 # Version 0: Jane Coates 6/11/2014
+# Version 1: Jane Coates 13/11/2014 refining plot for supplement
 
 use strict;
 use diagnostics;
@@ -44,34 +45,36 @@ $R->run(q` library(ggplot2) `,
         q` library(reshape2) `,
         q` library(Cairo) `,
         q` library(grid) `,
+        q` library(scales) `,
         q` library(gridExtra) `,
 );
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
-                            "CO2C3PAN + OH" = "#c9a415",
+                            "CO2C3PAN + OH" = "#0e5c28",
                             "KETP + NO" = "#6c254f",
                             "HKET + OH" = "#0352cb",
                             "OH + ONIT" = "#2b9eb3") `,
 );
+$R->run(q` scientific_10 <- function (x) { parse(text = gsub("e", "%*% 10^", scientific_format()(x))) } `);
 
 $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) ;
                                                             plot = plot + geom_bar(stat = "identity") ;
                                                             plot = plot + theme_bw() ;
-                                                            plot = plot + scale_y_continuous(limits = c(0, 1.5e7), breaks = seq(0, 1.5e7, 5e6)) ;
+                                                            plot = plot + scale_y_continuous(limits = c(0, 1.5e7), breaks = seq(0, 1.5e7, 2.5e6), label = scientific_10) ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(legend.position = c(0.99, 0.99)) ;
                                                             plot = plot + theme(legend.justification = c(0.99, 0.99)) ;
                                                             plot = plot + theme(panel.grid.minor = element_blank()) ;
                                                             plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 140, face = "bold")) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 80, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 80)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 150, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 67)) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 140)) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(legend.key.size = unit(6.5, "cm")) ;
+                                                            plot = plot + theme(legend.key.size = unit(7, "cm")) ;
                                                             plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
                                                             return(plot) } `,
 );
@@ -106,7 +109,7 @@ $R->run(q` CairoPDF(file = "MGLY_pentane_production_comparison.pdf", width = 141
                                                     plots[[7]], 
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 160), vjust = 0.5) ) `,
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 200), vjust = 0.5) ) `,
         q` print(multiplot) `,
         q` dev.off() `,
 );
