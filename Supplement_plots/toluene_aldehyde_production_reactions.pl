@@ -97,9 +97,11 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(strip.text = element_text(size = 200, face = "bold")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
-        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
+        q` plot = plot + theme(legend.text = element_text(size = 150)) `,
+        q` plot = plot + theme(legend.key.size = unit(8, "cm")) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(legend.position = c(0.96, 0.10)) `,
+        q` plot = plot + theme(legend.justification = c(0.96, 0.10)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(levels(data$Reaction))) `,
 );
 
