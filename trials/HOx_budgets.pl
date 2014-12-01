@@ -29,7 +29,7 @@ foreach my $run (@runs) {
     my $mecca = MECCA->new($boxmodel);
     my $eqn_file = "$base/$run/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    $families{"HOx"} = [ qw( OH HO2 HO2NO2 )];
+    $families{"HOx"} = [ qw( OH HO2 HO2NO2 HONO )];
 
     my (%production, %consumption);
     $kpp->family({
@@ -129,6 +129,25 @@ foreach my $mechanism (sort keys %plot_data) {
 }
 #my $p = $R->run(q` print(data) `);
 #print "$p\n";
+$R->run(q` my.colours = c(  "Others" = "#696537", 
+                            "Methane" = "#6c254f",
+                            "O1D = OH + OH" = "#f9c500", 
+                            "Ethane" = "#0352cb", 
+                            "Propane" = "#0e5c28", 
+                            "2-Methylpropane" = "#e7e85e", 
+                            "Butane" = "#ef6638", 
+                            "Pentane" = "#b569b3", 
+                            "2-Methylbutane" = "#4c9383", 
+                            "Hexane" = "#86b650", 
+                            "Ethene" = "#cc6329", 
+                            "Propene" = "#2b9eb3", 
+                            "2-Methylpropene" = "#f7c56c",
+                            "Isoprene" = "#0c3f78",
+                            "Toluene" = "#8c1531",
+                            "m-Xylene" = "#6db875",
+                            "o-Xylene" = "#f3aa7f",
+                            "p-Xylene" = "#be2448" ) `); 
+$R->run(q` data$Reaction = factor(data$Reaction, levels = c("O1D = OH + OH", "Methane", "Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Ethene", "Propene", "2-Methylpropene", "Isoprene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Others")) `);
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
@@ -148,6 +167,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
         q` plot = plot + theme(legend.text = element_text(size = 140)) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(levels(data$Reaction))) `,
 );
 
 $R->run(q` CairoPDF(file = "HOx_budgets.pdf", width = 141, height = 200) `,

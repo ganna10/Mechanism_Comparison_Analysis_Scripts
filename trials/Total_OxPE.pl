@@ -71,8 +71,8 @@ $R->stop();
 
 sub get_data {
     my ($mecca, $kpp, $run) = @_;
-    $families{"HO2x"} = [ qw( HO2 HO2NO2 ) ];
-    my @loop = ("Ox_$run", "HO2x");
+    #$families{"HO2x"} = [ qw( HO2 HO2NO2 ) ];
+    my @loop = ("Ox_$run");
     my ($production, $consumption);
 
     foreach my $species (@loop) {
@@ -98,17 +98,17 @@ sub get_data {
             my $reaction_number = $kpp->reaction_number($reaction);
             my $rate = $mecca->rate($reaction_number) * $producer_yields->[$_];
             next if ($rate->sum == 0);
-            my ($r_number, $parent) = split /_/, $reaction;
+            my $reaction_string = $kpp->reaction_string($reaction);
+            #next if ($reaction_string =~ /HO2 \+ NO/);
             $production += $rate(1:$NTIME-2);
         }
 
         foreach (0..$#$consumers) {
-            last if ($species eq "HO2x");
+            #last if ($species eq "HO2x");
             my $reaction = $consumers->[$_];
             my $reaction_number = $kpp->reaction_number($reaction);
             my $rate = $mecca->rate($reaction_number) * $consumer_yields->[$_];
             next if ($rate->sum == 0);
-            my ($r_number, $parent) = split /_/, $reaction;
             $consumption += $rate(1:$NTIME-2);
         }
     }

@@ -26,7 +26,9 @@ foreach my $run (@runs) {
     my $boxmodel = "$base/$run/boxmodel";
     my $mecca = MECCA->new($boxmodel);
     my $HNO3 = $mecca->tracer("HNO3");
-    $plot_data{$mechanisms[$index]} = $HNO3(1:$NTIME-2) * 1e9;
+    my $H2O2 = $mecca->tracer("H2O2");
+    my $ratio = $HNO3 / $H2O2;
+    $plot_data{$mechanisms[$index]} = $ratio(1:$NTIME-2) * 1e9;
     $index++;
 }
 
@@ -45,14 +47,14 @@ foreach my $run (sort keys %plot_data) {
 }
 
 $R->run(q` data = melt(data, id.vars = c("time"), variable.name = "Mechanism", value.name = "Mixing.ratio") `);
-$R->run(q` my.colours = c("#7fc97f", "#d95f01", "#7570b3", "#e72b8a", "#66a61e", "#e6ab02", "#a6761d", "#666666", "#000000") `);
+$R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRIv2" = "#ef6638", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 
 $R->run(q` plot = ggplot(data, aes(x = time, y = Mixing.ratio, colour = Mechanism)) `,
         q` plot = plot + geom_line() `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "HNO3_mixing_ratio_comparison.pdf") `,
+$R->run(q` CairoPDF(file = "HNO3_to_H2O2_mixing_ratio.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );

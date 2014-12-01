@@ -45,10 +45,12 @@ foreach my $mechanism (sort keys %mixing_ratio) {
     $R->set('mixing.ratio', [map { $_ } $mixing_ratio{$mechanism}->dog]);
     $R->run(q` data[mechanism] = mixing.ratio `);
 }
+$R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRI v2" = "#ef6638", "MCM v3.1" = "#000000", "MCM v3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 
 $R->run(q` data = melt(data, id.vars = c("Time"), variable.name = "Mechanism", value.name = "Mixing.Ratio") `);
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanism, group = Mechanism)) `,
         q` plot = plot + geom_line() `,
+        q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
 $R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf") `,
