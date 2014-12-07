@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Allocation HCHO mixing ratio time series in each mechanism to parent VOCs
 # Version 0: Jane Coates 18/11/2014
+# Version 1: Jane Coates 5/12/2014
 
 use strict;
 use diagnostics;
@@ -10,23 +11,21 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 
 #my @runs = qw( MOZART_tagging );
 #my @mechanisms = qw( MOZART-4 );
 #my @species = qw( CH2O );
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
 my @mechanisms = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
 my @species = qw( HCHO HCHO HCHO CH2O HCHO HCHO HCHO HCHO FORM );
 my $index = 0;
-
 my %plot_data;
 
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $spc_file = "$base/$run/gas.spc";
+    my $spc_file = "$base/${mechanism}_tagged/gas.spc";
     my $all_tagged_species = get_tagged_species($species[$index], $spc_file); 
     ($plot_data{$mechanisms[$index]}) = get_data($mecca, $all_tagged_species);
     $index++;
@@ -34,9 +33,8 @@ foreach my $run (@runs) {
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
         q` library(Cairo) `,
-        q` library(grid) `,
 );
 
 my $times = $mecca->time;
