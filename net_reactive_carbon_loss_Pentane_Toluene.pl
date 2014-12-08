@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during pentane and toluene degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
+# Version 1: Jane Coates 8/12/2014
 
 use strict;
 use diagnostics;
@@ -11,51 +12,13 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $times = $mecca->time;
 my $NTIME = $mecca->time->nelem;
-$times -= $times->at(0);
-$times = $times(1:$NTIME-2);
-$times /= 3600;
-my @time_axis = map { $_ } $times->dog; 
-my @time_blocks;
-foreach my $time (@time_axis) {#map to day and night
-    if ($time <= 12) {
-        push @time_blocks, "Day 1";
-    } elsif ($time > 12 and $time <= 24) {
-        push @time_blocks, "Night 1";
-    } elsif ($time > 24 and $time <= 36) {
-        push @time_blocks, "Day 2";
-    } elsif ($time > 36 and $time <= 48) {
-        push @time_blocks, "Night 2";
-    } elsif ($time > 48 and $time <= 60) {
-        push @time_blocks, "Day 3",
-    } elsif ($time > 60 and $time <= 72) {
-        push @time_blocks, "Night 3";
-    } elsif ($time > 72 and $time <= 84) {
-        push @time_blocks, "Day 4";
-    } elsif ($time > 84 and $time <= 96) {
-        push @time_blocks, "Night 4";
-    } elsif ($time > 96 and $time <= 108) {
-        push @time_blocks, "Day 5";
-    } elsif ($time > 108 and $time <= 120) {
-        push @time_blocks, "Night 5";
-    } elsif ($time > 120 and $time <= 132) {
-        push @time_blocks, "Day 6";
-    } elsif ($time > 132 and $time <= 144) {
-        push @time_blocks, "Night 6";
-    } elsif ($time > 144 and $time <= 156) {
-        push @time_blocks, "Day 7";
-    } else {
-        push @time_blocks, "Night 7";
-    }
-}
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @runs = qw( RADM2_tagged ) ;
-#my @mechanisms = qw( RADM2 );
-my $array_index = 0;
+#my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
+my @mechanisms = qw( RADM2 );
+my $index = 0;
 
 my (%n_carbon, %families, %weights, %plot_data);
 
@@ -75,7 +38,7 @@ foreach my $run (@runs) {
         my $parent = get_mechanism_species($NMVOC, $run);
         ($plot_data{$mechanisms[$array_index]}{$NMVOC}) = get_data($kpp, $mecca, $mechanisms[$array_index], $n_carbon{"Ox_$mechanisms[$array_index]"}, $parent);
     }
-    $array_index++;
+    $index++;
 }
 
 my $R = Statistics::R->new();
