@@ -2,6 +2,7 @@
 # compare radical production as prescribed by NO source calculation
 # Version 0: Jane Coates 3/10/2014
 # Version 1: Jane Coates 30/10/2014 Merging OH+PAR and ROR, as they are tied together, plotting aesthetic improvements
+# Version 2: Jane Coates 8/12/2014 updating script for constant emissions runs
 
 use strict;
 use diagnostics;
@@ -12,73 +13,54 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
-my $times = $mecca->time;
-$times -= $times->at(0);
-$times = $times(1:$NTIME-2);
-$times /= 3600;
-my @time_axis = map { $_ } $times->dog; 
-my @time_blocks;
-foreach my $time (@time_axis) {
-    if ($time <= 12) {
-        push @time_blocks, "Day 1";
-    } elsif ($time > 12 and $time <= 24) {
-        push @time_blocks, "Night 1";
-    } elsif ($time > 24 and $time <= 36) {
-        push @time_blocks, "Day 2";
-    } elsif ($time > 36 and $time <= 48) {
-        push @time_blocks, "Night 2";
-    } elsif ($time > 48 and $time <= 60) {
-        push @time_blocks, "Day 3",
-    } elsif ($time > 60 and $time <= 72) {
-        push @time_blocks, "Night 3";
-    } elsif ($time > 72 and $time <= 84) {
-        push @time_blocks, "Day 4";
-    } elsif ($time > 84 and $time <= 96) {
-        push @time_blocks, "Night 4";
-    } elsif ($time > 96 and $time <= 108) {
-        push @time_blocks, "Day 5";
-    } elsif ($time > 108 and $time <= 120) {
-        push @time_blocks, "Night 5";
-    } elsif ($time > 120 and $time <= 132) {
-        push @time_blocks, "Day 6";
-    } elsif ($time > 132 and $time <= 144) {
-        push @time_blocks, "Night 6";
-    } elsif ($time > 144 and $time <= 156) {
-        push @time_blocks, "Day 7";
-    } else {
-        push @time_blocks, "Night 7";
-    }
-}
+my $dt = $mecca->dt->at(0);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY; 
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
-#my @runs = qw( CBM4_tagging CB05_tagging );
-#my @mechanisms = qw( CBM-IV CB05 );
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" );
 my $index = 0;
 
-my (%families, %weights, %plot_data, %legend);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+my (%families, %weights, %data);
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $eqn_file = "$base/$run/gas.eqn";
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    my $radical_file = "$base/$run/radicals.txt";
+    my $radical_file = "$base/${mechanism}_tagged/radicals.txt";
     my @radicals = get_species($radical_file);
     $families{$mechanisms[$index]} = [ @radicals ];
-    ($plot_data{$mechanisms[$index]}, $legend{$mechanisms[$index]}) = get_data($mecca, $kpp, $mechanisms[$index]);
+    $data{$mechanism} = get_data($mecca, $kpp, $mechanism);
     $index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(plyr) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
         q` library(Cairo) `,
-        q` library(gridExtra) `,
-        q` library(grid) `,
 );
+
+$R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7") ]);
+$R->run(q` data = data.frame() `);
+foreach my $mechanism (keys %data) {
+    $R->run(q` pre = data.frame(Time) `);
+    foreach my $ref (@{$data{$mechanism}}) {
+        foreach my $reaction (sort keys %$ref) {
+            next if ($reaction eq "CH3CO3");
+            $R->set('reaction', $reaction);
+            $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
+            $R->run(q` pre[reaction] = rate `);
+        }
+    }
+    $R->set('mechanism', $mechanism);
+    $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
+            q` pre = gather(pre, Reaction, Rate, -Time, -Mechanism) `,
+            q` data = rbind(data, pre) `,
+    );
+}
+#my $p = $R->run(q` print(pre) `);
+#print $p, "\n";
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "MGLYOX + hv" = "#f9c500", "CH3COCHO + hv" = "#f9c500", "CARB6 + hv" = "#f9c500", "MGLY + hv" = "#f9c500", 
@@ -91,83 +73,58 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "C2O3 + NO" = "#e7e85e",
                             "C2H4 + OH" = "#9bb08f", 
                             "CXO3 + NO" = "#2c9daf",
-                            "C2H6 + OH" = "#8ed6d2",
+                            "DCB + hv" = "#8ed6d2",
                             "O1D" = "#6c254f",
                             "HCHO + hv" = "#0e5c28", "CH2O + hv" = "#0e5c28", "FORM + hv" = "#0e5c28",
                             "DCB + hv" = "#76afca",
                             "KET + hv" = "#1c3e3d",
                             "CH4 + OH" = "#0d3e76",
+                            "ALDX + hv" = "#cc6329",
                             "MEK + hv" = "#86b650" ) `,
+        q` reaction.levels = c( "O1D",
+                                "HCHO + hv",
+                                "MGLY + hv",
+                                "NO + TCO3",
+                                "DCB + hv",
+                                "KET + hv",
+                                "DCB1 + O3",
+                                "MEK + hv",
+                                "OH + PAR",
+                                "C2O3 + NO",
+                                "C2H4 + OH",
+                                "CXO3 + NO",
+                                "Production Others" ) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
 );
 
-$R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = time, y = Rate, fill = Reaction)) ;
-                                                            plot = plot + geom_bar(stat = "identity") ;
-                                                            plot = plot + scale_y_continuous(limits = c(0, 6.5e8), breaks = seq(0, 6.5e8, 1e8)) ;
-                                                            plot = plot + theme_bw() ;
-                                                            plot = plot + ggtitle(mechanism) ;
-                                                            plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(panel.grid.minor = element_blank()) ;
-                                                            plot = plot + theme(axis.ticks.length = unit(2, "cm")) ;
-                                                            plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
-                                                            plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + theme(axis.title.y = element_blank()) ;
-                                                            plot = plot + theme(legend.title = element_blank()) ;
-                                                            plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 140)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 120)) ;
-                                                            plot = plot + theme(legend.key.size = unit(7, "cm")) ;
-                                                            plot = plot + theme(legend.justification = c(0.99, 0.99)) ;
-                                                            plot = plot + theme(legend.position = c(0.99, 0.99)) ;
-                                                            plot = plot + scale_fill_manual(values = my.colours, limits = rev(legend)) ;
-                                                            return(plot) } `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
+        q` plot = plot + geom_bar(stat = "identity") `,
+        q` plot = plot + facet_wrap( ~ Mechanism )`,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0.5)) `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 2e7)) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = reaction.levels, guide = guide_legend(nrow = 2)) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
+        q` plot = plot + ylab(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")")))) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(legend.position = "bottom") `,
 );
 
-$R->set('time', [@time_blocks]);
-$R->run(q` plots = c() `);
-foreach my $run (sort keys %plot_data) {
-    $R->run(q` data = data.frame(time) `);
-    $R->set('legend', [@{$legend{$run}}] );
-    $R->set('mechanism', $run );
-    foreach my $ref (@{$plot_data{$run}}) {
-        foreach my $reaction (sort keys %$ref) {
-            $R->set('reaction', $reaction);
-            $R->set('rate', [map { $_ } $ref->{$reaction}->dog]);
-            $R->run(q` data[reaction] = rate `);
-        }
-    }
-
-    $R->run(q` data = ddply(data, .(time), colwise(sum)) `,
-            q` data = data[1:7,] `,
-            q` data = melt(data, id.vars = c("time"), variable.name = "Reaction", value.name = "Rate") `,
-            q` plot = plotting(data, legend, mechanism) `,
-            q` plots = c(plots, list(plot)) `,
-    );
-}
-
-$R->run(q` CairoPDF(file = "radical_production_analysis.pdf", width = 141, height = 200) `,
-        q` multiplot = grid.arrange(arrangeGrob(plots[[1]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[5]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[6]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()),
-                                                plots[[7]],
-                                                plots[[8]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
-                                                plots[[9]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()),
-                                                nrow = 3),
-                                    nrow = 1, ncol = 1,
-                                    sub = textGrob("\n", gp = gpar(fontsize = 50)) ,
-                                    left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), rot = 90, gp = gpar(fontsize = 180), vjust = 0.5)) `,
-        q` print(multiplot) `,
+$R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 9, height = 9) `,
+        q` print(plot) `,
         q` dev.off() `,
 );
 
 $R->stop();
 
 sub get_data {
-    my ($mecca, $kpp, $family) = @_;
+    my ($mecca, $kpp, $mechanism) = @_;
     
     $families{'NOx'} = [ qw( NO NO2 NO3 N2O5 ) ];
     $weights{'NOx'} = { N2O5 => 2 };
@@ -178,20 +135,20 @@ sub get_data {
     });
 
     my ($radical_producers, $radical_producer_yields, $NOx_yields, %production_rates);
-    if (exists $families{$family}) { #radicals family
+    if (exists $families{$mechanism}) { #radicals family
         $kpp->family({                                                                                                                           
-                        name    => $family,
-                        members => $families{$family},
-                        weights => $weights{$family},
+                        name    => $mechanism,
+                        members => $families{$mechanism},
+                        weights => $weights{$mechanism},
         }); 
-        $radical_producers = $kpp->producing($family);
-        $radical_producer_yields = $kpp->effect_on($family, $radical_producers);
+        $radical_producers = $kpp->producing($mechanism);
+        $radical_producer_yields = $kpp->effect_on($mechanism, $radical_producers);
         $NOx_yields = $kpp->effect_on('NOx', $radical_producers);
     } else {
-        print "No radical family found for $family\n";
+        print "No radical family found for $mechanism\n";
     }
     
-    die "No producers found for $family\n" if (@$radical_producers == 0);
+    die "No producers found for $mechanism\n" if (@$radical_producers == 0);
 
     for (0..$#$radical_producers) { #get rates for all radical producing reactions
         next if ($NOx_yields->[$_] < 0);
@@ -206,7 +163,7 @@ sub get_data {
         my ($reactants, $products) = split / = /, $reaction_string;
         if ($reactants eq "ROR") {
             $reactants = "OH + PAR" ;
-        } elsif ($reactants eq "ETH + OH" and $family =~ /CB/) {
+        } elsif ($reactants eq "ETH + OH" and $mechanism =~ /CB/) {
             $reactants = "C2H4 + OH";
         } elsif ($reactants eq "ETHA + OH") {
             $reactants = "C2H6 + OH";
@@ -214,7 +171,7 @@ sub get_data {
         $production_rates{$reactants} += $rate(1:$NTIME-2);
     }
 
-    my $others = 3e7;
+    my $others = 7e8;
     foreach my $reaction (keys %production_rates) {
         if ($production_rates{$reaction}->sum < $others) {
             $production_rates{'Production Others'} += $production_rates{$reaction};
@@ -222,18 +179,23 @@ sub get_data {
         }
     }
 
+    foreach my $reaction (keys %production_rates) {
+        my $reshape = $production_rates{$reaction}->copy->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $production_rates{$reaction} = $integrate;
+    }
+
     my $sort_function = sub { $_[0]->sum };
-    my (@sorted_plot_data, @legend);
+    my @sorted_plot_data;
     my @sorted_prod = sort { &$sort_function($production_rates{$b}) <=> &$sort_function($production_rates{$a}) } keys %production_rates;
     foreach (@sorted_prod) { #sum up rates of reactions, starting with reaction with lowest sum, production others added separately 
         next if ($_ eq 'Production Others');
-        push @legend, $_;
         push @sorted_plot_data, { $_ => $production_rates{$_} };
     }
 
     push @sorted_plot_data, { 'Production Others' => $production_rates{'Production Others'} } if (defined $production_rates{'Production Others'}); #add Production Others to the beginning 
-    push @legend, 'Production Others';
-    return (\@sorted_plot_data, \@legend);
+    return \@sorted_plot_data;
 }
 
 sub get_species {
