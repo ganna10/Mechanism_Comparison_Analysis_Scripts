@@ -1,7 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during pentane and toluene degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
-# Version 1: Jane Coates 8/12/2014
+# Version 1: Jane Coates 9/12/2014 updating code for constant emission runs
 
 use strict;
 use diagnostics;
@@ -15,105 +15,80 @@ my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $times = $mecca->time;
 my $NTIME = $mecca->time->nelem;
+my $dt = $mecca->dt->at(0);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-my @mechanisms = qw( RADM2 );
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
 my $index = 0;
+my (%n_carbon, %families, %weights, %data);
 
-my (%n_carbon, %families, %weights, %plot_data);
-
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile);
-    my $ro2file = "$base/$run/RO2_species.txt";
+    my $ro2file = "$base/${mechanism}_tagged/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
-    my $carbon_file = "$base/$run/carbons.txt";
-    $families{"Ox_$mechanisms[$array_index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
-    $weights{"Ox_$mechanisms[$array_index]"} = { NO3 => 2, N2O5 => 3};
-    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run, $carbon_file);
+    my $carbon_file = "$base/${mechanism}_tagged/carbons.txt";
+    $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
+    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3 };
+    $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
     my @VOCs = qw(Pentane Toluene);
     foreach my $NMVOC (@VOCs) {
-        my $parent = get_mechanism_species($NMVOC, $run);
-        ($plot_data{$mechanisms[$array_index]}{$NMVOC}) = get_data($kpp, $mecca, $mechanisms[$array_index], $n_carbon{"Ox_$mechanisms[$array_index]"}, $parent);
+        my $parent = get_mechanism_species($NMVOC, $mechanism);
+        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
     }
     $index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(plyr) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
         q` library(Cairo) `,
-        q` library(scales) `,
-        q` library(grid) `,
-        q` library(gridExtra) `,
 );
 
-$R->set('Time', [@time_blocks]);
+$R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` plot.data = data.frame() `);
-foreach my $run (sort keys %plot_data) {
-    foreach my $VOC (sort keys %{$plot_data{$run}}) {
-        $R->run(q` data = data.frame(Time) `);
-        foreach my $reaction (sort keys %{$plot_data{$run}{$VOC}}) {
-            $R->set('reaction', $reaction);
-            $R->set('rate', [map { $_ } $plot_data{$run}{$VOC}{$reaction}->dog]);
-            $R->run(q` data[reaction] = rate `);
-        }
-        $R->set('mechanism', $run);
+foreach my $run (sort keys %data) {
+    $R->set('mechanism', $run);
+    $R->run(q` data = data.frame(Time) `);
+    foreach my $VOC (sort keys %{$data{$run}}) {
         $R->set('voc', $VOC);
-        $R->run(q` data = ddply(data, .(Time), colwise(sum)) `,
-                q` data = data[1:7,] `,
-                q` data$row.total = rowSums(data[-1]) `,
-                q` data = data[c("Time", "row.total")] `,
-                q` data$Mechanism = rep(mechanism, length(data$Time)) `,
-                q` data$VOC = rep(voc, length(data$Time)) `,
-                q` plot.data = rbind(plot.data, data) `,
-        );
+        $R->set('rate', [map { $_ } $data{$run}{$VOC}->dog]);
+        $R->run(q` data[voc] = rate `);
     }
+    $R->run(q` data$Mechanism = rep(mechanism, length(data$Time)) `,
+            q` data = gather(data, VOC, Rate, -Mechanism, -Time) `,
+            q` plot.data = rbind(plot.data, data) `,
+    );
 }
-#my $p = $R->run(q` print(plot.data) `);
+#my $p = $R->run(q` print(data) `);
 #print "$p\n";
 
-$R->run(q` my.colours = c(  "CB05" = "#0352cb",
-                            "CBM-IV" = "#b569b3",
-                            "CRIv2" = "#ef6638", 
-                            "MCMv3.1" = "#000000",
-                            "MCMv3.2" = "#dc3522",
-                            "MOZART-4" = "#cc9900",
-                            "RACM" = "#6c254f",
-                            "RACM2" = "#4682b4",
-                            "RADM2" = "#035c28") `,);
+$R->run(q` my.colours = c(  "CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRIv2" = "#ef6638", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 
 $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `), #scientific label format for y-axis
-$R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = row.total, colour = Mechanism, group = Mechanism)) `,
-        q` plot = plot + geom_point(size = 9) `,
-        q` plot = plot + geom_line(size = 6) `,
-        q` plot = plot + facet_grid(. ~ VOC, scales = "free") `,
+$R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mechanism, group = Mechanism)) `,
+        q` plot = plot + geom_point() `,
+        q` plot = plot + geom_line() `,
+        q` plot = plot + facet_wrap( ~ VOC) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + ylab(expression(bold(paste("Net Carbon Loss Rate (molecules ", cm^-3, s^-1, ")")))) `,
-        q` plot = plot + scale_y_continuous(limits = c(-2e8, 0), breaks = seq(-2e8, 0, 2e7), label = scientific_10) `,
-        q` plot = plot + theme(panel.grid.major = element_blank()) `,
-        q` plot = plot + theme(panel.grid.minor = element_blank())`,
-        q` plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) `,
-        q` plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) `,
+        #q` plot = plot + scale_y_continuous(limits = c(-2e8, 0), breaks = seq(-2e8, 0, 2e7), label = scientific_10) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(axis.title.y = element_text(size = 85)) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 60)) `,
+        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
         q` plot = plot + theme(legend.justification = c(0.99, 0.01)) `,
         q` plot = plot + theme(legend.position = c(0.99, 0.01)) `,
-        q` plot = plot + theme(legend.text = element_text(size = 40)) `,
-        q` plot = plot + theme(legend.key.size = unit(4, "cm")) `, 
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(strip.text = element_text(size = 90, face = "bold", vjust = 1.5)) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "net_reactive_carbon_loss.pdf", width = 57, height = 40) `,
+$R->run(q` CairoPDF(file = "net_reactive_carbon_loss_pentane_toluene.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -138,11 +113,9 @@ sub get_data {
             $producers = $kpp->producing($family);
         } else {
             print "No family found for $family\n";
-        }
-
+        } 
         die "No producers found for $family\n" if (@$producers == 0);
         
-        my $max_string_width = 27;
         for (0..$#$producers) { #get rates for all producing reactions
             my $reaction = $producers->[$_];
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
@@ -160,7 +133,12 @@ sub get_data {
         }
     }
 
-    return \%carbon_loss_rate;
+    my $overall_carbon_loss_rate = 0;
+    $overall_carbon_loss_rate += $carbon_loss_rate{$_} foreach (keys %carbon_loss_rate);
+    $overall_carbon_loss_rate = $overall_carbon_loss_rate->reshape($N_PER_DAY, $N_DAYS);
+    $overall_carbon_loss_rate = $overall_carbon_loss_rate->sumover;
+    $overall_carbon_loss_rate = $overall_carbon_loss_rate(0:13:2);
+    return $overall_carbon_loss_rate;
 }
 
 sub get_total_C {
@@ -208,7 +186,7 @@ sub get_species_carbon {
 sub get_carbons {
     my ($run, $file) = @_;
     my $carbons;
-    if ($run =~ /MCM_3\.1|MCM_3\.2/) {
+    if ($run =~ /MCMv3\.1|MCMv3\.2/) {
         $carbons = mcm_n_carbon($file);
     } elsif ($run =~ /MOZART/) {
         $carbons = mozart_n_carbon($file);
