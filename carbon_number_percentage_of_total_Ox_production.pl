@@ -4,6 +4,7 @@
 # Version 0: Jane Coates 21/9/2014
 # Version 1: Jane Coates 1/10/2014 Rounding up carbon numbers to nearest integer and updating colour scheme
 # Version 2: Jane Coates 11/11/2014 adapting to local computation
+# Version 3: Jane Coates 9/12/2014 re-factoring code for constant emissions
 
 use strict;
 use diagnostics;
@@ -14,89 +15,49 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
-my $times = $mecca->time;
-$times -= $times->at(0);
-$times = $times(1:$NTIME-2);
-$times /= 3600;
-my @time_axis = map { $_ } $times->dog; 
-my @time_blocks;
-foreach my $time (@time_axis) {#map to day and night
-    if ($time <= 12) {
-        push @time_blocks, "Day 1";
-    } elsif ($time > 12 and $time <= 24) {
-        push @time_blocks, "Night 1";
-    } elsif ($time > 24 and $time <= 36) {
-        push @time_blocks, "Day 2";
-    } elsif ($time > 36 and $time <= 48) {
-        push @time_blocks, "Night 2";
-    } elsif ($time > 48 and $time <= 60) {
-        push @time_blocks, "Day 3",
-    } elsif ($time > 60 and $time <= 72) {
-        push @time_blocks, "Night 3";
-    } elsif ($time > 72 and $time <= 84) {
-        push @time_blocks, "Day 4";
-    } elsif ($time > 84 and $time <= 96) {
-        push @time_blocks, "Night 4";
-    } elsif ($time > 96 and $time <= 108) {
-        push @time_blocks, "Day 5";
-    } elsif ($time > 108 and $time <= 120) {
-        push @time_blocks, "Night 5";
-    } elsif ($time > 120 and $time <= 132) {
-        push @time_blocks, "Day 6";
-    } elsif ($time > 132 and $time <= 144) {
-        push @time_blocks, "Night 6";
-    } elsif ($time > 144 and $time <= 156) {
-        push @time_blocks, "Day 7";
-    } else {
-        push @time_blocks, "Night 7";
-    }
-}
+my $dt = $mecca->dt->at(0);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @runs = qw( RACM_tagging ) ;
-#my @mechanisms = qw( RACM );
-my $array_index = 0;
+my (%n_carbon, %families, %weights, %data);
 
-my (%n_carbon, %families, %weights, %plot_data, %legend);
-
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile);
-    my $ro2file = "$base/$run/RO2_species.txt";
+    my $ro2file = "$base/${mechanism}_tagged/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
-    my $carbon_file = "$base/$run/carbons.txt";
-    $families{"Ox_$mechanisms[$array_index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
-    $weights{"Ox_$mechanisms[$array_index]"} = { NO3 => 2, N2O5 => 3};
-    $n_carbon{"Ox_$mechanisms[$array_index]"} = get_carbons($run, $carbon_file);
+    my $carbon_file = "$base/${mechanism}_tagged/carbons.txt";
+    $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
+    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
+    $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
     my @parents = qw( Pentane Toluene );
     foreach my $NMVOC (@parents) {
-        my $parent = get_mechanism_species($NMVOC, $run);
-        ($plot_data{$mechanisms[$array_index]}{$NMVOC}) = get_data($kpp, $mecca, $mechanisms[$array_index], $n_carbon{"Ox_$mechanisms[$array_index]"}, $parent);
+        my $parent = get_mechanism_species($NMVOC, $mechanism);
+        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
     }
-    $array_index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(plyr) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
+        q` library(dplyr) `,
         q` library(Cairo) `,
         q` library(scales) `,
         q` library(grid) `,
 );
 
-$R->set('Time', [@time_blocks]);
+$R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` data = data.frame() `);
 
-foreach my $run (sort keys %plot_data) {
-    foreach my $VOC (sort keys %{$plot_data{$run}}) {
+foreach my $run (sort keys %data) {
+    foreach my $VOC (sort keys %{$data{$run}}) {
         $R->run(q` pre.sort = data.frame(Time) `);
-        foreach my $ref (@{$plot_data{$run}{$VOC}}) {
+        foreach my $ref (@{$data{$run}{$VOC}}) {
             foreach my $carbons (sort keys %$ref) {
                 $R->set('carbons', $carbons);
                 $R->set('rate', [map { $_ } $ref->{$carbons}->dog]);
@@ -104,11 +65,8 @@ foreach my $run (sort keys %plot_data) {
             }
         }
         $R->set('mechanism', $run);
-        $R->set('Parent', $VOC);
-
-        $R->run(q` pre.sort = ddply(pre.sort, .(Time), colwise(sum)) `,
-                q` pre.sort = pre.sort[1:7,] `,
-                q` if("C2.4" %in% colnames(pre.sort)) { pre.sort$C2 = pre.sort$C2 + pre.sort$C2.4 ; pre.sort$C2.4 = NULL }`,
+        $R->set('Parent', $VOC); 
+        $R->run(q` if("C2.4" %in% colnames(pre.sort)) { pre.sort$C2 = pre.sort$C2 + pre.sort$C2.4 ; pre.sort$C2.4 = NULL }`,
                 q` if("C2.9" %in% colnames(pre.sort)) { pre.sort$C3 = pre.sort$C3 + pre.sort$C2.9 ; pre.sort$C2.9 = NULL }`,
                 q` if("C3.5" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C3.5 ; pre.sort$C3.5 = NULL }`,
                 q` if("C3.6" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C3.6 ; pre.sort$C3.6 = NULL }`,
@@ -122,9 +80,9 @@ foreach my $run (sort keys %plot_data) {
                 q` if("C7.75" %in% colnames(pre.sort)) { pre.sort$C8 = pre.sort$C7.75 ; pre.sort$C7.75 = NULL }`,
                 q` pre.sort$Mechanism = rep(mechanism, length(time)) `,
                 q` pre.sort$VOC = rep(Parent, length(time)) `,
-                q` pre.sort = melt(pre.sort, id.vars = c("Time", "Mechanism", "VOC"), variable.name = "C.number", value.name = "Rate") `,
-                q` percents = ddply(pre.sort, .var = c("Time", "Mechanism", "VOC"), summarise, C.number = C.number, Percent = Rate / sum(Rate) ) `,
-                q` data = rbind(data, percents) `,
+                q` pre.sort = gather(pre.sort, C.number, Rate, -Time, -Mechanism, -VOC) `,
+                q` pre.sort = pre.sort %>% group_by(Time) %>% do(data.frame(C.number = .$C.number, Mechanism = .$Mechanism, VOC = .$VOC, Percent = .$Rate / sum(.$Rate))) `,
+                q` data = rbind(data, pre.sort) `,
         );
 #my $p = $R->run(q` print(pre.sort) `);
 #print $p, "\n";
@@ -133,36 +91,30 @@ foreach my $run (sort keys %plot_data) {
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
-$R->run(q` data$VOC = factor(data$VOC, labels = c("Pentane\n", "Toluene\n")) `);
 
 $R->run(q` plot = ggplot(data, aes(y = Percent, x = Mechanism, fill = C.number)) `,
         q` plot = plot + geom_bar(stat = "identity", width = 0.5) `,
         q` plot = plot + coord_flip() `,
-        q` plot = plot + facet_grid( Time ~ VOC, scales = "free_x" ) `,
+        q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
         q` plot = plot + scale_y_continuous(labels = percent_format()) `,
-        q` plot = plot + ylab("\nCarbon Number of Degradation Products Percent Contribution to Daily Ox Production\n") `,
+        q` plot = plot + ylab("Carbon Number of Degradation Products Percent Contribution to Daily Ox Production") `,
+        q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
+        q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
-        q` plot = plot + theme(strip.text.y = element_text(size = 160, face = "bold", angle = 0)) `,
-        q` plot = plot + theme(strip.text.x = element_text(size = 200, face = "bold")) `,
+        q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
+        q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title.x = element_text(size = 160, face = "bold")) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 140)) `,
-        q` plot = plot + theme(axis.ticks.length = unit(2, "cm")) `,
-        q` plot = plot + theme(axis.ticks.margin = unit(1, "cm")) `,
-        q` plot = plot + theme(panel.grid.major = element_blank()) `,
-        q` plot = plot + theme(panel.grid.minor = element_blank()) `,
+        q` plot = plot + theme(axis.title.x = element_text(face = "bold")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "carbon_percent_total_Ox_production.pdf", width = 141, height = 200) `,
+$R->run(q` CairoPDF(file = "carbon_percent_total_Ox_production.pdf", width = 8.7, height = 10) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -188,9 +140,7 @@ sub get_data {
             $producer_yields = $kpp->effect_on($family, $producers);  
         } else {
             print "No family found for $family\n";
-        }
-
-        #check that species reactions are found
+        } 
         die "No producers found for $family\n" if (@$producers == 0);
         
         for (0..$#$producers) { #get rates for all producing reactions
@@ -247,39 +197,44 @@ sub get_data {
     }
 
     #get parent species emissions for each mechanism
-    my $dt = $mecca->dt->at(0); #model time step
-    my $parent_emissions;
-    if ($mechanism =~ /CBM-IV/ or $mechanism =~ /CB05/) {
-        if ($VOC =~ /NC5H12/) {
-            my $name = "PAR_NC5H12";
-            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-            $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
-        } elsif ($VOC =~ /TOLUENE/) {
-            my $name = "TOL_TOLUENE";
-            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-            $parent_emissions += $parent_source->sum * $dt ; 
-        } else {
-            print "No emissions data for $VOC\n";
-        }
-    } else {
-        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
-        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
+#    my $dt = $mecca->dt->at(0); #model time step
+#    my $parent_emissions;
+#    if ($mechanism =~ /CBM-IV/ or $mechanism =~ /CB05/) {
+#        if ($VOC =~ /NC5H12/) {
+#            my $name = "PAR_NC5H12";
+#            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+#            $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
+#        } elsif ($VOC =~ /TOLUENE/) {
+#            my $name = "TOL_TOLUENE";
+#            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
+#            $parent_emissions += $parent_source->sum * $dt ; 
+#        } else {
+#            print "No emissions data for $VOC\n";
+#        }
+#    } else {
+#        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
+#        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
+#    }
+#    
+#    #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
+#    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
+    # no more normalisation by emissions as constant emissions are used
+    foreach my $C (keys %production_rates) {
+        my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $production_rates{$C} = $integrate;
     }
-    
-    #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
-    my @prod_sorted_data = sort { $a cmp $b } keys %production_rates;
-    
+    my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;
-    push @final_sorted_data, { $_ => $production_rates{$_} } foreach (@prod_sorted_data);
-
+    push @final_sorted_data, { $_ => $production_rates{$_} } foreach (@prod_sorted_data); 
     return \@final_sorted_data;
 }
 
 sub get_carbons {
     my ($run, $file) = @_;
     my $carbons;
-    if ($run =~ /MCM_3\.1|MCM_3\.2/) {
+    if ($run =~ /MCM/) {
         $carbons = mcm_n_carbon($file);
     } elsif ($run =~ /MOZART/) {
         $carbons = mozart_n_carbon($file);
