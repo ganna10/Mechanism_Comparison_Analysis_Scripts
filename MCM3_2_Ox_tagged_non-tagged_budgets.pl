@@ -1,6 +1,7 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl 
 # calculate Ox production from tagged and non-tagged model runs
 # Version 0: Jane Coates 27/09/2014
+# Version 1: Jane Coates 9/12/2014 re-factoring code for constant emissions runs
 
 use strict;
 use diagnostics;
@@ -11,73 +12,57 @@ use KPP;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_no_tagging/boxmodel"); 
+my $mecca = MECCA->new("$base/MCMv3.2_no_tagging/boxmodel"); 
 my $NTIME = $mecca->time->nelem;
-my $times = $mecca->time;
-$times -= $times->at(0);
-$times = $times(1:$NTIME-2);
-$times /= 3600;
-my @time_axis = map { $_ } $times->dog;
-my @time_blocks;
-foreach my $time (@time_axis) {
-    if ($time <= 12) {
-        push @time_blocks, "Day 1";
-    } elsif ($time > 12 and $time <= 24) {
-        push @time_blocks, "Night 1";
-    } elsif ($time > 24 and $time <= 36) {
-        push @time_blocks, "Day 2";
-    } elsif ($time > 36 and $time <= 48) {
-        push @time_blocks, "Night 2";
-    } elsif ($time > 48 and $time <= 60) {
-        push @time_blocks, "Day 3",
-    } elsif ($time > 60 and $time <= 72) {
-        push @time_blocks, "Night 3";
-    } elsif ($time > 72 and $time <= 84) {
-        push @time_blocks, "Day 4";
-    } elsif ($time > 84 and $time <= 96) {
-        push @time_blocks, "Night 4";
-    } elsif ($time > 96 and $time <= 108) {
-        push @time_blocks, "Day 5";
-    } elsif ($time > 108 and $time <= 120) {
-        push @time_blocks, "Night 5";
-    } elsif ($time > 120 and $time <= 132) {
-        push @time_blocks, "Day 6";
-    } elsif ($time > 132 and $time <= 144) {
-        push @time_blocks, "Night 6";
-    } elsif ($time > 144 and $time <= 156) {
-        push @time_blocks, "Day 7";
-    } else {
-        push @time_blocks, "Night 7";
-    }
-}
+my $dt = $mecca->dt->at(0);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @runs = qw( MCM_3.2_no_tagging MCM_3.2_tagged );
-my @mechanisms = qw( no_tagging tagged );
-my $index = 0;
+my @runs = qw( no_tagging tagged );
+my $index = 0; 
+my (%families, %weights, %data);
 
-my (%families, %weights, %plot_data);
 foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+    my $boxmodel = "$base/MCMv3.2_$run/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/MCMv3.2_$run/gas.eqn";
     my $kpp = KPP->new($eqnfile); 
-    my $ro2file = "$base/$run/RO2_species.txt";
+    my $ro2file = "$base/MCMv3.2_$run/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
-    $families{$mechanisms[$index]} = ( [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ]); 
-    $weights{$mechanisms[$index]} = ( { NO3 => 2, N2O5 => 3});
-    ($plot_data{$mechanisms[$index]}) = get_data($mecca, $kpp, $mechanisms[$index]);
+    $families{$run} =  [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ]; 
+    $weights{$run} = { NO3 => 2, N2O5 => 3};
+    $data{$run} = get_data($mecca, $kpp, $run);
     $index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `);
-$R->run(q` library(plyr) `);
-$R->run(q` library(reshape2) `);
-$R->run(q` library(grid) `);
-$R->run(q` library(gridExtra) `);
-$R->run(q` library(RColorBrewer) `);
-$R->run(q` library(scales) `);
+$R->run(q` library(tidyr) `);
 $R->run(q` library(Cairo) `);
+
+$R->set('Time', [("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7")]);
+$R->run(q` data = data.frame() `);
+foreach my $run (sort keys %data) {
+    $R->run(q` pre = data.frame(Time) `);
+    foreach my $ref (@{$data{$run}}) {
+        foreach my $item (sort keys %$ref) {
+            $R->set('process', $item);
+            $R->set('rate', [ map { $_ } $ref->{$item}->dog ]);
+            $R->run(q` pre[process] = rate `);
+        }
+    }
+    if ($run =~ /no/) {
+        $R->set('run', "Not Tagged");
+    } else {
+        $R->set('run', "Tagged");
+    }
+    $R->run(q` pre$Run = rep(run, length(Time)) `,
+            q` pre = gather(pre, Process, Rate, -Time, -Run) `,
+            q` data = rbind(data, pre) `,
+    );
+}
+#my $p = $R->run(q` print(data) `);
+#print $p, "\n";
 
 $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `, #scientific label format for y-axis
         q` my.colours = c( "Production Others" = "#696537", 
@@ -138,58 +123,14 @@ $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scien
                         "CH3O2 + NO = CH3O + NO2" = "CH3O2 + NO = CH3O + NO2") `,
 );
 
-$R->run(q` plotting = function (data, title) {   plot = ggplot(data, aes(x = time, y = rate, fill = VOC)) ;
-                                                 plot = plot + geom_bar(stat = "identity") ;
-                                                 plot = plot + theme_bw() ;
-                                                 plot = plot + ggtitle(title) ;
-                                                 plot = plot + theme(plot.title = element_text(size = 90, face = "bold")) ;
-                                                 plot = plot + theme(axis.text.x = element_text(size = 70, angle = 45, vjust = 0.5)) ;
-                                                 plot = plot + theme(axis.text.y = element_text(size = 60)) ;
-                                                 plot = plot + theme(axis.title.x = element_blank()) ;
-                                                 plot = plot + theme(axis.title.y = element_blank()) ;
-                                                 plot = plot + theme(legend.key.size = unit(4, "cm")) ;
-                                                 plot = plot + theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank()) ;
-                                                 plot = plot + theme(panel.grid.minor.y=element_blank(), panel.grid.major.y=element_blank()) ;
-                                                 plot = plot + theme(legend.text = element_text(size = 40)) ;
-                                                 plot = plot + theme(legend.title = element_blank()) ;
-                                                 plot = plot + theme(legend.position = c(0.99, 0.99), legend.justification = c(0.99, 0.99)) ;
-                                                 plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ; 
-                                                 plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ; 
-                                                 plot = plot + scale_fill_manual( limits = rev(VOC.levels), labels = my.names, values = my.colours) ;
-                                                 plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8), label = scientific_10);
-                                                 plot = plot + theme(legend.key = element_blank()) ;
-                                                 return(plot) } `,
+$R->run(q` plot = ggplot(data, aes( x = Time, y = Rate, fill = Process )) `,
+        q` plot = plot + geom_bar(stat = "identity") `,
+        q` plot = plot + facet_wrap( ~ Run ) `,
+        q` plot = plot + theme_bw() `,
 );
 
-$R->set('time', [@time_blocks]);
-$R->run(q` plots = list() `);
-foreach my $run (sort keys %plot_data) {
-    $R->run(q` data = data.frame(time) `);
-    foreach my $ref (@{$plot_data{$run}}) {
-        foreach my $key (keys %$ref) {
-            $R->set('name', $key);
-            $R->set('rate', [@{$ref->{$key}}]);
-            $R->run(q` data[name] = rate`); 
-        }
-    }
-    $R->run(q` data = ddply(data, .(time), colwise(sum)) `,
-            q` data = melt(data, id.vars = c("time"), variable.name = "VOC", value.name = "rate") `,
-            q` VOC.levels = levels(factor(data$VOC)) `,
-            q` data$VOC = ordered(data$VOC, levels = VOC.levels) `,
-            q` plot = plotting(data, "(a) No Tagging") `,
-            q` plots = c(plots, list(plot)) `,
-    );
-    #my $p = $R->run(q` print(data) `);
-    #print $p, "\n";
-} 
-
-$R->run(q` CairoPDF(file = "MCMv3_2_Ox_no_tagging_tagging_budget.pdf", width = 57, height = 40) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
-                                                    plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    nrow = 1), 
-                                       nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")"))), rot = 90, gp = gpar(fontsize = 140), vjust = 0.5) ) `,
-        q` print(multiplot) `,
+$R->run(q` CairoPDF(file = "MCMv3.2_tagged_non_tagged_Ox_budget.pdf") `,
+        q` print(plot) `,
         q` dev.off() `,
 );
 
@@ -200,7 +141,7 @@ sub get_data {
     $families{'HO2x'} = ( [ qw( HO2 HO2NO2 ) ] );
     my @species = ($Ox, "HO2x");
 
-    my (%production_reaction_rates, %species_production_rates, %consumption_reaction_rates, %species_consumption_rates); 
+    my (%production, %consumption); 
     foreach my $species (@species) { #get all production and consumption rates
         my ($producers, $producer_yields, $consumers, $consumer_yields);
         if (exists $families{$species}) { #get family reaction numbers and yields
@@ -215,8 +156,7 @@ sub get_data {
             $consumer_yields = $kpp->effect_on($species, $consumers);  
         } else { #get reaction numbers and yields
             print "No family for $species found\n";
-        }
-
+        } 
         die "No producers found for $species\n" if (@$producers == 0);
         die "No consumers found for $species\n" if (@$consumers == 0);
         
@@ -228,11 +168,9 @@ sub get_data {
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
             my $string = $kpp->reaction_string($reaction);
             if (defined $parent) { # for tagged reactions
-                #$string =~ s/_$parent//g; #removing tag from reaction strings
-                #$species_production_rates{$species}{$parent}{$string} += $rate;
                 $string = $parent; # in order to merge all production rates from all parent species reactions into 1 pdl
             }
-            $production_reaction_rates{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
+            $production{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
         }
 
         for (0..$#$consumers) { #get rates for all consuming reactions
@@ -243,55 +181,49 @@ sub get_data {
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
             my $string = $kpp->reaction_string($reaction);
             if (defined $parent) { # for tagged reactions
-                #$string =~ s/_$parent//g; #removing tag from reaction strings
-                #$species_consumption_rates{$species}{$parent}{$string} += $rate;
                 $string = $parent; # in order to merge all consumption rates from all parent species reactions into 1 pdl
             }
-            $consumption_reaction_rates{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
+            $consumption{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
         }
     } 
-    remove_common_processes($production_reaction_rates{'HO2x'}, $consumption_reaction_rates{'HO2x'});
+    remove_common_processes($production{'HO2x'}, $consumption{'HO2x'});
     my $ho2x_total_production = zeroes(PDL::float, $NTIME-2);
-    $ho2x_total_production += $production_reaction_rates{'HO2x'}{$_} for (keys %{ $production_reaction_rates{'HO2x'} });
+    $ho2x_total_production += $production{'HO2x'}{$_} for (keys %{ $production{'HO2x'} });
 
-    foreach my $reaction( keys %{ $production_reaction_rates{'HO2x'} }) {
-        $production_reaction_rates{$Ox}{$reaction} += $production_reaction_rates{$Ox}{'HO2 + NO = NO2 + OH'} * $production_reaction_rates{'HO2x'}{$reaction} / $ho2x_total_production;
-        $consumption_reaction_rates{$Ox}{$reaction} += $consumption_reaction_rates{$Ox}{'HO2 + O3 = OH'} * $consumption_reaction_rates{'HO2x'}{$reaction} / $ho2x_total_production;
-        $consumption_reaction_rates{$Ox}{$reaction} += $consumption_reaction_rates{$Ox}{'HO2 + NO3 = NO2 + OH'} * $consumption_reaction_rates{'HO2x'}{$reaction} / $ho2x_total_production;
+    foreach my $reaction( keys %{ $production{'HO2x'} }) {
+        $production{$Ox}{$reaction} += $production{$Ox}{'HO2 + NO = NO2 + OH'} * $production{'HO2x'}{$reaction} / $ho2x_total_production;
+        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + O3 = OH'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
+        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + NO3 = NO2 + OH'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
     }
-    delete $production_reaction_rates{$Ox}{'HO2 + NO = NO2 + OH'};
-    delete $consumption_reaction_rates{$Ox}{'HO2 + O3 = OH'};
-    delete $consumption_reaction_rates{$Ox}{'HO2 + NO3 = NO2 + OH'}; 
-    remove_common_processes($production_reaction_rates{$Ox}, $consumption_reaction_rates{$Ox});
+    delete $production{$Ox}{'HO2 + NO = NO2 + OH'};
+    delete $consumption{$Ox}{'HO2 + O3 = OH'};
+    delete $consumption{$Ox}{'HO2 + NO3 = NO2 + OH'}; 
+    remove_common_processes($production{$Ox}, $consumption{$Ox});
 
-    my $prod_others_max = 8e7;
+    my $prod_others_max = 8e8;
     my $sort_function = sub { $_[0]->sum };
-    foreach my $item (keys %{$production_reaction_rates{$Ox}}) {
-        if ($production_reaction_rates{$Ox}{$item}->sum < $prod_others_max) { #get production others
-            $production_reaction_rates{$Ox}{'Production Others'} += $production_reaction_rates{$Ox}{$item};
-            delete $production_reaction_rates{$Ox}{$item};
+    foreach my $item (keys %{$production{$Ox}}) {
+        if ($production{$Ox}{$item}->sum < $prod_others_max) { #get production others
+            $production{$Ox}{'Production Others'} += $production{$Ox}{$item};
+            delete $production{$Ox}{$item};
         }
     }
 
-    #$prod_hash{$_}->where($prod_hash{$_} < 0) .= 0 foreach (keys %prod_hash); 
-    my @sorted_prod = sort { &$sort_function($production_reaction_rates{$Ox}{$b}) <=> &$sort_function($production_reaction_rates{$Ox}{$a}) } keys %{$production_reaction_rates{$Ox}};
+    foreach my $item (keys %{$production{$Ox}}) {
+        my $reshape = $production{$Ox}{$item}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $production{$Ox}{$item} = $integrate;
+    }
 
-    my (@sorted_plot_data);
+    my @sorted_prod = sort { &$sort_function($production{$Ox}{$b}) <=> &$sort_function($production{$Ox}{$a}) } keys %{$production{$Ox}}; 
+    my @sorted_plot_data;
     foreach (@sorted_prod) { #sum up rates of reactions, starting with reaction with lowest sum, production others added separately 
         next if ($_ eq 'Production Others');
-        push @sorted_plot_data, { $_ => $production_reaction_rates{$Ox}{$_} };
+        push @sorted_plot_data, { $_ => $production{$Ox}{$_} };
     }
 
-    push @sorted_plot_data, { 'Production Others' => $production_reaction_rates{$Ox}{'Production Others'} } if (defined $production_reaction_rates{$Ox}{'Production Others'}); #add Production Others to the beginning 
-
-    my @plot_data;
-    foreach my $ref (@sorted_plot_data) {#extract reaction and rates for each plot
-        foreach my $item (keys %{$ref}) {
-            my @rate_array = map { $_ } $ref->{$item}->dog;
-            push @plot_data, { $item => \@rate_array };
-        }
-    } 
-    return \@plot_data;
+    push @sorted_plot_data, { 'Production Others' => $production{$Ox}{'Production Others'} } if (defined $production{$Ox}{'Production Others'}); #add Production Others to the beginning 
+    return \@sorted_plot_data;
 }
 
 sub get_no2_reservoirs { #get species that are produced when radical species react with NO2
