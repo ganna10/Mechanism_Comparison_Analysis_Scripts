@@ -76,13 +76,14 @@ $R->run(q` arrange.data = function (data, mechanism) { data = gather(data, Run, 
                                                        return(data) } `,
 );
 
-$R->run(q` mozart.data = arrange.data(mozart.data, "(d) MOZART-4") `,
-        q` radm2.data = arrange.data(radm2.data, "(a) RADM2") `,
-        q` racm.data = arrange.data(racm.data, "(b) RACM") `,
-        q` racm2.data = arrange.data(racm2.data, "(c) RACM2") `,
-        q` cbm4.data = arrange.data(cbm4.data, "(e) CBM-IV") `,
-        q` cb05.data = arrange.data(cb05.data, "(f) CB05") `,
+$R->run(q` mozart.data = arrange.data(mozart.data, "MOZART-4") `,
+        q` radm2.data = arrange.data(radm2.data, "RADM2") `,
+        q` racm.data = arrange.data(racm.data, "RACM") `,
+        q` racm2.data = arrange.data(racm2.data, "RACM2") `,
+        q` cbm4.data = arrange.data(cbm4.data, "CBM-IV") `,
+        q` cb05.data = arrange.data(cb05.data, "CB05") `,
         q` data = rbind(mozart.data, radm2.data, racm.data, racm2.data, cbm4.data, cb05.data) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = c("RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
 );
 
 #my $p = $R->run(q` print(data) `);
@@ -92,7 +93,7 @@ $R->run(q` plot = ggplot(data = data, aes(x = time, y = Concentration, colour = 
         q` plot = plot + facet_wrap( ~ Mechanism ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_continuous(limits = c(0, 7), breaks = seq(0, 7, 1)) `,
-        q` plot = plot + scale_y_continuous(limits = c(30, 350), breaks = seq(30, 350, 50)) `,
+        #q` plot = plot + scale_y_continuous(limits = c(30, 350), breaks = seq(30, 350, 50)) `,
         q` plot = plot + xlab("Time (days)") `,
         q` plot = plot + ylab("O3 Mixing Ratio (ppbv)") `, 
         q` plot = plot + theme(strip.background = element_blank()) `,
