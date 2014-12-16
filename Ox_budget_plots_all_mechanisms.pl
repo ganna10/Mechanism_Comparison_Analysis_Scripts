@@ -190,7 +190,7 @@ sub get_data {
     }
     remove_common_processes($production{"Ox_$mechanism"}, $consumption{"Ox_$mechanism"});
     
-    my $others = 7.8e8;
+    my $others = 8.8e7;
     foreach my $process (keys %{$production{"Ox_$mechanism"}}) {
         if ($production{"Ox_$mechanism"}{$process}->sum < $others) {
             $production{"Ox_$mechanism"}{"Production Others"} += $production{"Ox_$mechanism"}{$process};

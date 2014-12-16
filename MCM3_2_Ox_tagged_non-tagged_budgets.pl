@@ -127,6 +127,7 @@ $R->run(q` plot = ggplot(data, aes( x = Time, y = Rate, fill = Process )) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Run ) `,
         q` plot = plot + theme_bw() `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
 );
 
 $R->run(q` CairoPDF(file = "MCMv3.2_tagged_non_tagged_Ox_budget.pdf") `,
@@ -166,11 +167,13 @@ sub get_data {
             my $rate = $producer_yields->[$_] * $mecca->rate($reaction_number); 
             next if ($rate->sum == 0); # do not include reactions that do not occur 
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-            my $string = $kpp->reaction_string($reaction);
             if (defined $parent) { # for tagged reactions
-                $string = $parent; # in order to merge all production rates from all parent species reactions into 1 pdl
+                $production{$species}{$parent} += $rate(1:$NTIME-2);
+            } else {
+                my $string = $kpp->reaction_string($reaction);
+                my ($reactants, $products) = split / = /, $string;
+                $production{$species}{$reactants} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
             }
-            $production{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
         }
 
         for (0..$#$consumers) { #get rates for all consuming reactions
@@ -179,11 +182,13 @@ sub get_data {
             my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
             next if ($rate->sum == 0); # do not include reactions that do not occur 
             my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-            my $string = $kpp->reaction_string($reaction);
             if (defined $parent) { # for tagged reactions
-                $string = $parent; # in order to merge all consumption rates from all parent species reactions into 1 pdl
+                $consumption{$species}{$parent} += $rate(1:$NTIME-2);
+            } else {
+                my $string = $kpp->reaction_string($reaction);
+                my ($reactants, $products) = split / = /, $string;
+                $consumption{$species}{$reactants} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
             }
-            $consumption{$species}{$string} += $rate(1:$NTIME-2); #attribute rates to each parent tagged species and the non-tagged reactions
         }
     } 
     remove_common_processes($production{'HO2x'}, $consumption{'HO2x'});
@@ -191,16 +196,21 @@ sub get_data {
     $ho2x_total_production += $production{'HO2x'}{$_} for (keys %{ $production{'HO2x'} });
 
     foreach my $reaction( keys %{ $production{'HO2x'} }) {
-        $production{$Ox}{$reaction} += $production{$Ox}{'HO2 + NO = NO2 + OH'} * $production{'HO2x'}{$reaction} / $ho2x_total_production;
-        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + O3 = OH'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
-        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + NO3 = NO2 + OH'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
+        $production{$Ox}{$reaction} += $production{$Ox}{'HO2 + NO'} * $production{'HO2x'}{$reaction} / $ho2x_total_production;
+        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + O3'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
+        $consumption{$Ox}{$reaction} += $consumption{$Ox}{'HO2 + NO3'} * $consumption{'HO2x'}{$reaction} / $ho2x_total_production;
     }
-    delete $production{$Ox}{'HO2 + NO = NO2 + OH'};
-    delete $consumption{$Ox}{'HO2 + O3 = OH'};
-    delete $consumption{$Ox}{'HO2 + NO3 = NO2 + OH'}; 
+    delete $production{$Ox}{'HO2 + NO'};
+    delete $consumption{$Ox}{'HO2 + O3'};
+    delete $consumption{$Ox}{'HO2 + NO3'}; 
     remove_common_processes($production{$Ox}, $consumption{$Ox});
 
-    my $prod_others_max = 8e8;
+    my $prod_others_max;
+    if ($Ox =~ /no/) {
+        $prod_others_max = 1.5e8;
+    } else {
+        $prod_others_max = 2.5e8;
+    }
     my $sort_function = sub { $_[0]->sum };
     foreach my $item (keys %{$production{$Ox}}) {
         if ($production{$Ox}{$item}->sum < $prod_others_max) { #get production others

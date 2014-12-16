@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Compare First day and final cumulative TOPP for each VOC in each mechanism in the constant emissions and constant mixing ratio runs
 # Version 0: Jane Coates 7/12/2014
+# Version 1: Jane Coates 15/12/2014 Changed for balance runs
 
 use strict;
 use diagnostics;
@@ -30,7 +31,7 @@ foreach my $daily_MR (@daily_constant_MR) {
 
 #get constant mixing ratios cumulative last day  TOPP
 opendir DIR, $base_dir or die "Can't open $base_dir : $!";
-my @cumulative_constant_MR = grep { $_ =~ /_cumulative/ } readdir DIR;
+my @cumulative_constant_MR = grep { $_ =~ /_cumulative\.txt/ } readdir DIR;
 closedir DIR;
 
 my %MR_TOPP_cumulative;
@@ -48,16 +49,16 @@ foreach my $cumulative_MR (@cumulative_constant_MR) {
     }
 }
 
-#get constant emissions first day and calculate cumulative sum TOPP
-(my $dir = $base_dir) =~ s/(.*?)Emissions_vs_Mixing_ratio/$1/;
+#get balances first day and calculate cumulative sum TOPP
+(my $dir = $base_dir) =~ s/(.*?)Balance_vs_Mixing_ratio/$1/;
 opendir DIR, $dir or die "Can't open $dir : $!";
-my @daily_constant_emissions = grep { $_ =~ /_TOPP_values/ } readdir DIR;
+my @daily_balances = grep { $_ =~ /_TOPP_values/ } readdir DIR;
 closedir DIR;
 
-my (%emissions_TOPP_first_day, %emissions_TOPP_cumulative);
-foreach my $daily_emissions (@daily_constant_emissions) {
-    my @lines = split /\n/, read_file("$dir/$daily_emissions");
-    (my $mechanism = $daily_emissions) =~ s/^(.*?)_TOPP_values\.txt/$1/;
+my (%balances_TOPP_first_day, %balances_TOPP_cumulative);
+foreach my $daily_balances (@daily_balances) {
+    my @lines = split /\n/, read_file("$dir/$daily_balances");
+    (my $mechanism = $daily_balances) =~ s/^(.*?)_TOPP_values\.txt/$1/;
     foreach my $line (@lines) {
         next if ($line =~ /^Working|^CH4/);
         my ($VOC, $TOPPs) = split / => /, $line;
@@ -65,10 +66,10 @@ foreach my $daily_emissions (@daily_constant_emissions) {
         $TOPPs =~ s/^\s+|\s+$//g;
         $TOPPs =~ s/\s+/:/g;
         my @TOPPs = split /:/, $TOPPs;
-        $emissions_TOPP_first_day{$mechanism}{$VOC} = $TOPPs[0];
+        $balances_TOPP_first_day{$mechanism}{$VOC} = $TOPPs[0];
         my $sum = 0;
         $sum += $_ foreach (@TOPPs);
-        $emissions_TOPP_cumulative{$mechanism}{$VOC} = $sum;
+        $balances_TOPP_cumulative{$mechanism}{$VOC} = $sum;
     }
 }
 
@@ -78,9 +79,9 @@ $R->run(q` library(ggplot2) `,
         q` library(Cairo) `,
 );
 
-$R->run(q` plotting = function (data, filename, title) {plot = ggplot(data, aes(x = Emissions, y = Mixing.Ratio, colour = VOC, group = VOC));
+$R->run(q` plotting = function (data, filename, title) {plot = ggplot(data, aes(x = Balances, y = Mixing.Ratio, colour = VOC, group = VOC));
                                                         plot = plot + geom_point();
-                                                        plot = plot + xlab("Constant Emissions TOPP");
+                                                        plot = plot + xlab("Balances TOPP");
                                                         plot = plot + ylab("Constant Mixing Ratio TOPP");
                                                         plot = plot + ggtitle(title);
                                                         plot = plot + geom_abline(intercept = 0, slope = 1);
@@ -93,23 +94,23 @@ $R->run(q` plotting = function (data, filename, title) {plot = ggplot(data, aes(
                                                         print(plot);
                                                         dev.off() } `);
 
-foreach my $mechanism (sort keys %emissions_TOPP_first_day) {
+foreach my $mechanism (sort keys %balances_TOPP_first_day) {
     $R->set('daily.filename', "${mechanism}_first_day.pdf");
     $R->set('daily.title', "$mechanism : First Day TOPP Values");
     $R->set('cumulative.filename', "${mechanism}_cumulative.pdf");
     $R->set('cumulative.title', "$mechanism : Cumulative TOPP Values");
-    my @VOCs = sort keys %{$emissions_TOPP_first_day{$mechanism}};
+    my @VOCs = sort keys %{$balances_TOPP_first_day{$mechanism}};
     $R->set('voc', [@VOCs]);
-    $R->run(q` daily.data = data.frame(Mixing.Ratio = as.numeric(0), Emissions = as.numeric(0)) `,
-            q` cumulative.data = data.frame(Mixing.Ratio = as.numeric(0), Emissions = as.numeric(0)) `,
+    $R->run(q` daily.data = data.frame(Mixing.Ratio = as.numeric(0), Balances = as.numeric(0)) `,
+            q` cumulative.data = data.frame(Mixing.Ratio = as.numeric(0), Balances = as.numeric(0)) `,
     );
-    foreach my $VOC (sort keys %{$emissions_TOPP_first_day{$mechanism}}) {
+    foreach my $VOC (sort keys %{$balances_TOPP_first_day{$mechanism}}) {
         $R->set('daily.MR', $MR_TOPP_first_day{$mechanism}{$VOC});
-        $R->set('daily.emissions', $emissions_TOPP_first_day{$mechanism}{$VOC});
+        $R->set('daily.balances', $balances_TOPP_first_day{$mechanism}{$VOC});
         $R->set('cumulative.MR', $MR_TOPP_cumulative{$mechanism}{$VOC});
-        $R->set('cumulative.emissions', $emissions_TOPP_cumulative{$mechanism}{$VOC}); 
-        $R->run(q` daily.data = rbind(daily.data, c(daily.MR, daily.emissions)) `);
-        $R->run(q` cumulative.data = rbind(cumulative.data, c(cumulative.MR, cumulative.emissions)) `);
+        $R->set('cumulative.balances', $balances_TOPP_cumulative{$mechanism}{$VOC}); 
+        $R->run(q` daily.data = rbind(daily.data, c(daily.MR, daily.balances)) `);
+        $R->run(q` cumulative.data = rbind(cumulative.data, c(cumulative.MR, cumulative.balances)) `);
     }
     $R->run(q` daily.data = daily.data[-1,] `,
             q` daily.data$VOC = voc `,

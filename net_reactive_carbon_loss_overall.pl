@@ -1,7 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during Ox degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
-# Version 1: Jane Coates 8/12/2014
+# Version 1: Jane Coates 16/12/2014 re-factoring for balance runs
 
 use strict;
 use diagnostics;
@@ -65,15 +65,14 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Loss.Rate, colour = Mechanism, 
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `, 
-        q` plot = plot + theme(legend.position = "bottom") `,
-        q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
-        q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
+        q` plot = plot + theme(legend.position = c(0.99, 0.01)) `,
+        q` plot = plot + theme(legend.justification = c(0.99, 0.01)) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 5e7)) `,
         q` plot = plot + scale_x_discrete(expand = c(0, 0.3)) `,
 );
 
-$R->run(q` CairoPDF(file = "Overall_net_carbon_loss.pdf", width = 8.5, height = 8.5) `,
+$R->run(q` CairoPDF(file = "Overall_net_carbon_loss.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -130,7 +129,7 @@ sub get_total_C {
     my ($reaction_string, $carbons, $kpp) = @_;
     my ($reactant_c, $product_c, @reactants, @products);
 
-    my @inorganic = qw( hv OH HO2 O3 NO NO2 NO3 H2O HNO3 H2 PAROP O CO2 XO2 XO2N OHOP );
+    my @inorganic = qw( hv O2 H2O2 OH HO2 O3 NO NO2 NO3 H2O HNO3 H2 PAROP O CO2 XO2 XO2N OHOP );
     my ($reactants, $products) = split / = /, $reaction_string;
     push @reactants, split / \+ /, $reactants;
     push @products, split / \+ /, $products;

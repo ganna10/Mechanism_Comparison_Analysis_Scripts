@@ -45,9 +45,11 @@ $R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"
 $R->run(q` data = data.frame() `);
 foreach my $mechanism (keys %data) {
     $R->run(q` pre = data.frame(Time) `);
+    #print "$mechanism\n";
     foreach my $ref (@{$data{$mechanism}}) {
         foreach my $reaction (sort keys %$ref) {
             next if ($reaction eq "CH3CO3");
+            #print "\t$reaction\n";
             $R->set('reaction', $reaction);
             $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
             $R->run(q` pre[reaction] = rate `);
@@ -87,7 +89,7 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                                 "NO + TCO3",
                                 "DCB + hv",
                                 "KET + hv",
-                                "DCB1 + O3",
+                                "CH4 + OH",
                                 "MEK + hv",
                                 "OH + PAR",
                                 "C2O3 + NO",
@@ -171,7 +173,7 @@ sub get_data {
         $production_rates{$reactants} += $rate(1:$NTIME-2);
     }
 
-    my $others = 7e8;
+    my $others = 3.5e7;
     foreach my $reaction (keys %production_rates) {
         if ($production_rates{$reaction}->sum < $others) {
             $production_rates{'Production Others'} += $production_rates{$reaction};
