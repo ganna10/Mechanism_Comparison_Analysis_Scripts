@@ -19,7 +19,6 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @runs = qw( no_tagging tagged );
-my $index = 0; 
 my (%families, %weights, %data);
 
 foreach my $run (@runs) {
@@ -32,50 +31,27 @@ foreach my $run (@runs) {
     $families{$run} =  [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ]; 
     $weights{$run} = { NO3 => 2, N2O5 => 3};
     $data{$run} = get_data($mecca, $kpp, $run);
-    $index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `);
 $R->run(q` library(tidyr) `);
 $R->run(q` library(Cairo) `);
-
-$R->set('Time', [("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7")]);
-$R->run(q` data = data.frame() `);
-foreach my $run (sort keys %data) {
-    $R->run(q` pre = data.frame(Time) `);
-    foreach my $ref (@{$data{$run}}) {
-        foreach my $item (sort keys %$ref) {
-            $R->set('process', $item);
-            $R->set('rate', [ map { $_ } $ref->{$item}->dog ]);
-            $R->run(q` pre[process] = rate `);
-        }
-    }
-    if ($run =~ /no/) {
-        $R->set('run', "Not Tagged");
-    } else {
-        $R->set('run', "Tagged");
-    }
-    $R->run(q` pre$Run = rep(run, length(Time)) `,
-            q` pre = gather(pre, Process, Rate, -Time, -Run) `,
-            q` data = rbind(data, pre) `,
-    );
-}
-#my $p = $R->run(q` print(data) `);
-#print $p, "\n";
+$R->run(q` library(grid) `);
+$R->run(q` library(gridExtra) `);
 
 $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `, #scientific label format for y-axis
         q` my.colours = c( "Production Others" = "#696537", 
-                           "C2H5O = CH3CHO + HO2" = "#f9c600", 
-                           "C2H5O2 + NO = C2H5O + NO2" = "#76afca", 
-                           "HCHO + hv = CO + HO2 + HO2" = "#dc3522", 
-                           "CH3CO3 + NO = CH3O2 + NO2" = "#8c6238", 
-                           "HCHO + OH = CO + HO2" = "#9bb08f", 
-                           "CH3O = HCHO + HO2" = "#8b1537", 
-                           "CH3O2 + NO = CH3O + NO2" = "#e7e85e", 
-                           "CO + OH = HO2" = "#2c9def", 
-                           "O3 + OH = HO2" = "#603912", 
-                           "IC3H7O2 + NO = IC3H7O + NO2" = "#b569b3",
+                           "C2H5O" = "#f9c600", 
+                           "C2H5O2 + NO" = "#76afca", 
+                           "HCHO + hv" = "#dc3522", 
+                           "CH3CO3 + NO2" = "#8c6238", 
+                           "HCHO + OH" = "#9bb08f", 
+                           "CH3O" = "#8b1537", 
+                           "CH3O2 + NO" = "#e7e85e", 
+                           "CO + OH" = "#2c9def", 
+                           "O3 + OH" = "#603912", 
+                           "CH3CO3 + NO" = "#b569b3",
                            "NC7H16" = "#f9c600", 
                            "EBENZ" = "#76afca", 
                            "BENZENE" = "#dc3522", 
@@ -112,27 +88,57 @@ $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scien
                         "NC4H10" = "Butane", 
                         "IC5H12" = "2-Methylbutane", 
                         "CH4" = "Methane", 
-                        "CO + OH = HO2" = "CO",
-                        "Production Others" = "Production Others", 
-                        "C2H5O = CH3CHO + HO2" = "C2H5O = CH3CHO + HO2", 
-                        "C2H5O2 + NO = C2H5O + NO2" = "C2H5O2 + NO = C2H5O + NO2", 
-                        "HCHO + hv = CO + HO2 + HO2" = "HCHO + hv = CO + HO2 + HO2", 
-                        "CH3CO3 + NO = CH3O2 + NO2" = "CH3CO3 + NO = CH3O2 + NO2", 
-                        "HCHO + OH = CO + HO2" = "HCHO + OH = CO + HO2", 
-                        "CH3O = HCHO + HO2" = "CH3O = HCHO + HO2", 
-                        "CH3O2 + NO = CH3O + NO2" = "CH3O2 + NO = CH3O + NO2") `,
+                        "CO + OH" = "CO",
+                        "Production Others" = "Production Others" ) `, 
+);
+$R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time, y = Rate, fill = Process)) ;
+                                                plot = plot + geom_bar(stat = "identity") ;
+                                                plot = plot + theme_bw() ;
+                                                plot = plot + ggtitle(title) ;
+                                                plot = plot + theme(plot.title = element_text(face = "bold")) ;
+                                                plot = plot + ylab(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")")))) ;
+                                                plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) ;
+                                                plot = plot + theme(axis.title.x = element_blank()) ;
+                                                plot = plot + theme(panel.grid = element_blank()) ;
+                                                plot = plot + theme(legend.title = element_blank()) ;
+                                                plot = plot + theme(legend.position = c(1.031, 1.031), legend.justification = c(1.031, 1.031)) ;
+                                                plot = plot + scale_fill_manual(limits = rev(levels(data$Process)), labels = my.names, values = my.colours) ;
+                                                plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8));
+                                                plot = plot + theme(legend.key = element_blank()) ;
+                                                plot = plot + theme(panel.border = element_rect(colour = "black")) ;
+                                                plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
+                                                return(plot) } `,
 );
 
-$R->run(q` plot = ggplot(data, aes( x = Time, y = Rate, fill = Process )) `,
-        q` plot = plot + geom_bar(stat = "identity") `,
-        q` plot = plot + facet_wrap( ~ Run ) `,
-        q` plot = plot + theme_bw() `,
-        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
-);
-
-$R->run(q` CairoPDF(file = "MCMv3.2_tagged_non_tagged_Ox_budget.pdf") `,
-        q` print(plot) `,
-        q` dev.off() `,
+$R->set('Time', [("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7")]);
+$R->run(q` plots = list() `);
+foreach my $run (sort keys %data) {
+    $R->run(q` pre = data.frame(Time) `);
+    foreach my $ref (@{$data{$run}}) {
+        foreach my $item (sort keys %$ref) {
+            $R->set('process', $item);
+            $R->set('rate', [ map { $_ } $ref->{$item}->dog ]);
+            $R->run(q` pre[process] = rate `);
+        }
+    }
+    if ($run =~ /no/) {
+        $R->set('run', "Not Tagged");
+    } else {
+        $R->set('run', "Tagged");
+    }
+    $R->run(q` pre = gather(pre, Process, Rate, -Time) `,
+            q` plot = plotting(pre, run) `,
+            q` plots = c(plots, list(plot)) `,
+    );
+}
+#my $p = $R->run(q` print(plot) `);
+#print $p, "\n";
+$R->run(q` CairoPDF(file = "MCMv3.2_tagged_non_tagged_Ox_budget.pdf", width = 7.5, height = 7.5) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
+                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    nrow = 1), 
+                                       nrow = 1, ncol = 1) `,
+        q` print(multiplot) `,
 );
 
 $R->stop(); 
@@ -205,15 +211,9 @@ sub get_data {
     delete $consumption{$Ox}{'HO2 + NO3'}; 
     remove_common_processes($production{$Ox}, $consumption{$Ox});
 
-    my $prod_others_max;
-    if ($Ox =~ /no/) {
-        $prod_others_max = 1.5e8;
-    } else {
-        $prod_others_max = 2.5e8;
-    }
-    my $sort_function = sub { $_[0]->sum };
+    my $prod_others_max = 1.5e8;
     foreach my $item (keys %{$production{$Ox}}) {
-        if ($production{$Ox}{$item}->sum < $prod_others_max) { #get production others
+        if ($production{$Ox}{$item}->sum < $prod_others_max) {
             $production{$Ox}{'Production Others'} += $production{$Ox}{$item};
             delete $production{$Ox}{$item};
         }
@@ -225,6 +225,7 @@ sub get_data {
         $production{$Ox}{$item} = $integrate;
     }
 
+    my $sort_function = sub { $_[0]->sum };
     my @sorted_prod = sort { &$sort_function($production{$Ox}{$b}) <=> &$sort_function($production{$Ox}{$a}) } keys %{$production{$Ox}}; 
     my @sorted_plot_data;
     foreach (@sorted_prod) { #sum up rates of reactions, starting with reaction with lowest sum, production others added separately 
