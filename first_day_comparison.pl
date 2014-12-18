@@ -28,8 +28,9 @@ foreach my $file (@daily_TOPP_files) {
 }
 
 my $R = Statistics::R->new();
-$R->run(q` library(ggplot2) `);
+$R->run(q` library(dplyr) `);
 $R->run(q` library(tidyr) `);
+$R->run(q` library(ggplot2) `);
 $R->run(q` library(Cairo) `);
 
 $R->set('VOCs', [sort keys %{$TOPP{"MCMv3.2"}}]);
@@ -38,19 +39,13 @@ foreach my $mechanism (sort keys %TOPP) {
     $R->set('mechanism', $mechanism);
     $R->run(q` topp = c() `);
     foreach my $VOC (sort keys %{$TOPP{"MCMv3.2"}}) { 
-        if (defined $TOPP{$mechanism}{$VOC}) {
-            $R->set('value', $TOPP{$mechanism}{$VOC});
-        } else {
-            $R->set('value', 999);
-        }
+        $R->set('value', $TOPP{$mechanism}{$VOC});
         $R->run(q` topp = c(topp, value) `);
     }
     $R->run(q` data[mechanism] = topp `);
 }
-$R->run(q` data = gather(data, Mechanism, TOPP, -VOC, -MCMv3.2) `,
-        q` data = as.data.frame(lapply(data, function(x) { replace(x, x== 999, NA) })) `,
-);
-#my $p = $R->run(q` print(data) `);
+$R->run(q` data = gather(data, Mechanism, TOPP, -VOC, -MCMv3.2) `);
+#my $p = $R->run(q` print(label.text) `);
 #print "$p\n";
 
 #specifiying colours and names
@@ -59,7 +54,7 @@ $R->run(q` my.colours = c( "Ethane " = "#696537", "Propane " = "#f9c600", "Butan
         q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
 );
 
-$R->run(q` plot = ggplot(data, aes(x = MCMv3.2, y = TOPP, colour = VOC, group = VOC)) `,
+$R->run(q` plot = ggplot(data = data, aes(x = MCMv3.2, y = TOPP, colour = VOC, group = VOC)) `,
         q` plot = plot + geom_point(shape = 19) `,
         q` plot = plot + facet_wrap( ~ Mechanism, ncol = 2) `,
         q` plot = plot + theme_bw() `,
