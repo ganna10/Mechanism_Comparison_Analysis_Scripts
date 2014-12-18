@@ -103,7 +103,7 @@ $R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time
                                                 plot = plot + theme(legend.title = element_blank()) ;
                                                 plot = plot + theme(legend.position = c(1.031, 1.031), legend.justification = c(1.031, 1.031)) ;
                                                 plot = plot + scale_fill_manual(limits = rev(levels(data$Process)), labels = my.names, values = my.colours) ;
-                                                plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8));
+                                                plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8), expand = c(0, 1e7));
                                                 plot = plot + theme(legend.key = element_blank()) ;
                                                 plot = plot + theme(panel.border = element_rect(colour = "black")) ;
                                                 plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
@@ -122,9 +122,9 @@ foreach my $run (sort keys %data) {
         }
     }
     if ($run =~ /no/) {
-        $R->set('run', "Not Tagged");
+        $R->set('run', "(a) Not Tagged");
     } else {
-        $R->set('run', "Tagged");
+        $R->set('run', "(b) Tagged");
     }
     $R->run(q` pre = gather(pre, Process, Rate, -Time) `,
             q` plot = plotting(pre, run) `,
@@ -133,7 +133,7 @@ foreach my $run (sort keys %data) {
 }
 #my $p = $R->run(q` print(plot) `);
 #print $p, "\n";
-$R->run(q` CairoPDF(file = "MCMv3.2_tagged_non_tagged_Ox_budget.pdf", width = 7.5, height = 7.5) `,
+$R->run(q` CairoPDF(file = "MCMv3_2_tagged_non_tagged_Ox_budget.pdf", width = 7.5, height = 7.5) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
                                                     plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     nrow = 1), 
