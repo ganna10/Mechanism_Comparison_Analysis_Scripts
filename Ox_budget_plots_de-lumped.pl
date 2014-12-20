@@ -37,6 +37,7 @@ my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
         q` library(Cairo) `,
+        q` library(dplyr) `,
 );
 
 $R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
@@ -56,9 +57,18 @@ foreach my $mechanism (keys %data) {
             q` pre = gather(pre, VOC, Rate, -Time, -Mechanism) `,
             q` data = rbind(data, pre) `,
     );
-    #my $p = $R->run(q` print(pre) `);
-    #print $p, "\n";
 }
+
+$R->run(q` day.1 = filter(data, Time == "Day 1") `);
+$R->run(q` cri = filter(day.1, Mechanism == "CRIv2") `);
+my $p = $R->run(q` print(sum(cri$Rate)) `);
+print "CRI => $p\n";
+$R->run(q` CB4 = filter(day.1, Mechanism == "CBM-IV") `);
+my $p1 = $R->run(q` print(sum(CB4$Rate)) `);
+print "CBM-IV => $p1\n";
+$R->run(q` mcm = filter(day.1, Mechanism == "MCMv3.2") `);
+my $p2 = $R->run(q` print(sum(mcm$Rate)) `);
+print "MCMv3.2 => $p2\n";
 
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
         q` VOC.levels = c(  "Methane ", "CO ", "Ethane ", "Propane ", "2-Methylpropane ", "Butane ", "Pentane ", "2-Methylbutane ", "Hexane ", "Ethene ", "Propene ", "2-Methylpropene ", "Isoprene ", "Toluene ", "m-Xylene ", "o-Xylene ", "p-Xylene ", "Production Others" ) `, 
