@@ -110,7 +110,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC )) `,
         q` plot = plot + scale_fill_manual(values = my.colours, limits = VOC.levels, guide = guide_legend(nrow = 3)) `,
 );
 
-$R->run(q` CairoPDF( file = "Ox_production_budgets_by_VOC_de-allocated.pdf" , width = 9, height = 9) `,
+$R->run(q` CairoPDF( file = "Ox_production_budgets_by_VOC_de-allocated.pdf" , width = 9, height = 12.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
