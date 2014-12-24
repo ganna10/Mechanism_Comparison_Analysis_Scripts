@@ -72,7 +72,7 @@ $R->run(q` plot = ggplot(data = data, aes(x = MCMv3.2, y = TOPP, colour = VOC, g
         q` plot = plot + scale_colour_manual(values = my.colours, guide = guide_legend(nrow = 3)) `,
 );
 
-$R->run(q` CairoPDF(file = "first_day_values.pdf", width = 8, height = 8) `,
+$R->run(q` CairoPDF(file = "first_day_values.pdf", width = 8, height = 11.3) `,
         q` print(plot) `,
         q` dev.off() `,
 );
