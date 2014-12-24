@@ -76,7 +76,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = TOPP, colour = Mechanism, group
         q` plot = plot + scale_colour_manual(values = my.colours, guide = guide_legend(nrow = 1)) `,
 );
 
-$R->run(q` CairoPDF(file = "TOPP_daily_time_series_all_VOC.pdf", width = 8, height = 8) `,
+$R->run(q` CairoPDF(file = "TOPP_daily_time_series_all_VOC.pdf", width = 8, height = 5.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
