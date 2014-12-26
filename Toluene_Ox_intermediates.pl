@@ -3,7 +3,7 @@
 # Version 0: Jane Coates 25/9/2014
 # Version 1: Jane Coates 21/10/2014 including assignment of XO2 producing reactions to budget
 # Version 2: Jane Coates 10/11/2014 including HO2x production and updates to script
-# Version 3: Jane Coates 26/12/2014 only RACM and MCM v3.2 in analysis and re-factoring code
+# Version 3: Jane Coates 26/12/2014 including all mechanisms in analysis and re-factoring code
 
 use strict;
 use diagnostics;
@@ -20,9 +20,7 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @mechanisms = ( "MCMv3.2", "RACM" );
-my @species = qw( TOLUENE TOL );
-my $index = 0; 
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
 my (%families, %weights, %plot_data, %legend);
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
@@ -33,8 +31,7 @@ foreach my $mechanism (@mechanisms) {
     my @no2_reservoirs = get_no2_reservoirs($kpp, $RO2_file);
     $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
-    ($plot_data{$mechanism}, $legend{$mechanism}) = get_data($species[$index], $mecca, $kpp, "Ox_$mechanism");
-    $index++;
+    ($plot_data{$mechanism}, $legend{$mechanism}) = get_data($mecca, $kpp, "Ox_$mechanism");
 }
 
 my $R = Statistics::R->new();
@@ -50,10 +47,13 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "CH3CO3 + NO" = "#8b1537", "C2O3 + NO" = "#8b1537", "ACO3 + NO" = "#8b1537",
                             "CRES + OH" = "#cc6329", "CSL + OH" = "#cc6329",
                             "OH + TOL" = "#1c3e3d",
-                            "NO + TLBIPERO2" = "#f7c56c",
+                            "NO + TLBIPERO2" = "#b569b3", "NO + RA16O2" = "#b569b3", "NO + TOLO2" = "#b569b3", "NO + TOLP" = "#b569b3",
+                            "OH + TOLUENE" = "#8ed6dc",
+                            "NO + TCO3" = "#6c254f",
                             "TO2" = "#f3aa7f",
                             "TLBIPERO" = "#4c9383",
-                            "HCHO + OH" = "#b569b3",
+                            "HCHO + OH" = "#ae4901", "CH2O + OH" = "#ae4901",
+                            "GLYOXAL + OH" = "#a67c52",
                             "CH3O" = "#0e5c28",
                             "CO + OH" = "#77aecc", 
                             "Consumption Others" = "#ee6738",
@@ -64,6 +64,10 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "CSL + NO3" = "#86b650", "CRES + NO3" = "#86b650",
                             "ADDT + O3" = "#6c254f", 
                             "NO2 + PHO" = "#8ed6d5",
+                            "C2H5O2 + NO" = "#c9a415", "ETHP + NO" = "#c9a415",
+                            "HOCH2CH2O2 + NO" = "#e7e85e",
+                            "NO + RN10O2" = "#1c3e3d",
+                            "BIGALD + hv" = "#8c1531", 
                             "CRO + NO2" = "#898989") `,
 );
 
@@ -74,17 +78,18 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) ;
-                                                            plot = plot + theme(plot.title = element_text(face = "bold")) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5), expand = c(0, -0.5)) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 20, angle = 45, hjust = 0.8, vjust = 0.7)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 18)) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 22, face = "bold")) ;
                                                             plot = plot + theme(panel.grid = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
                                                             plot = plot + theme(panel.border = element_rect(colour = "black")) ;
                                                             plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
-                                                            plot = plot + theme(legend.justification = c(1.1, -0.03)) ;
-                                                            plot = plot + theme(legend.position = c(1.1, -0.03)) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-40, 35), breaks = seq(-40, 35, 5), expand = c(0, -3)) ;
-                                                            plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
+                                                            plot = plot + theme(legend.justification = c(1.0, 0.0)) ;
+                                                            plot = plot + theme(legend.position = c(1.0, 0.0)) ;
+                                                            plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
                                                             return(plot) } `,
 ); 
 
@@ -111,11 +116,19 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 6.5, height = 6.8) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] , 
-                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    nrow = 1), 
-                                       nrow = 1, ncol = 1 ) `, 
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 16.9, height = 26.0) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()), 
+                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[9]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[7]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[8]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[6]] + theme(axis.title.y = element_blank()),
+                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    nrow = 3), 
+                                       nrow = 1, ncol = 1,
+                                       left = textGrob(expression(bold(paste("Molecules (intermediate) ", s^-1, "/ Molecules (VOC) x ", 10^4))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
         q` print(multiplot) `,
         q` dev.off() `,
 );
@@ -123,7 +136,7 @@ $R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 6.5, height = 6.8
 $R->stop();
 
 sub get_data {
-    my ($parent, $mecca, $kpp, $Ox) = @_;
+    my ($mecca, $kpp, $Ox) = @_;
     $families{"HO2x"} = [ qw( HO2 HO2NO2 )];
     my @loop = ("HO2x", $Ox);
     
@@ -149,14 +162,14 @@ sub get_data {
         for (0..$#$producers) { #get rates for all producing reactions
             my $reaction = $producers->[$_];
             my ($number, $VOC) = split /_/, $reaction;
-            next unless (defined $VOC and $VOC eq $parent);
+            next unless (defined $VOC and $VOC =~ /TOL/);
             my $reaction_number = $kpp->reaction_number($reaction);
             my $rate = $producer_yields->[$_] * $mecca->rate($reaction_number); 
             next if ($rate->sum == 0); # do not include reactions that do not occur 
             my $reaction_string = $kpp->reaction_string($reaction);
             $reaction_string =~ s/_$VOC\b//g;
             my($reactants, $products) = split / = /, $reaction_string;
-            if ($reactants =~ /XO2/ and $species =~ /RACM|CB/) {
+            if ($reactants =~ /XO2/ and $species =~ /RA|CB/) {
                 my $operator = "XO2_" . $VOC;
                 my $op_producers = $kpp->producing($operator);
                 my $op_producer_yields = $kpp->effect_on($operator, $op_producers); 
@@ -181,7 +194,7 @@ sub get_data {
         for (0..$#$consumers) { #get rates for all consuming reactions
             my $reaction = $consumers->[$_];
             my ($number, $VOC) = split /_/, $reaction; #remove tag from reaction number
-            next unless (defined $VOC and $VOC eq $parent);
+            next unless (defined $VOC and $VOC =~ /TOL/);
             my $reaction_number = $kpp->reaction_number($reaction);
             my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
             next if ($rate->sum == 0); # do not include reactions that do not occur 
@@ -209,18 +222,32 @@ sub get_data {
         }
     }
 
+    my $parent;
+    if ($Ox =~ /RA/) {
+        $parent = "TOL";
+    } elsif ($Ox =~ /CB/) {
+        $parent = "TOL_TOLUENE";
+    } else {
+        $parent = "TOLUENE";
+    }
     my $emission_reaction = $kpp->producing_from($parent, "UNITY");
     my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
     my $emission_rate = $mecca->rate($reaction_number); 
     $emission_rate = $emission_rate(1:$NTIME-2);
     $emission_rate = $emission_rate->sum * $dt; 
-    $emission_rate *= 0.667 if ($Ox =~ /RACM/);
-
+    
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_reaction_rates{$_} /= $emission_rate foreach (sort keys %production_reaction_rates);
     $consumption_reaction_rates{$_} /= $emission_rate foreach (sort keys %consumption_reaction_rates);
 
     foreach my $reaction (keys %production_reaction_rates) {
+        if ($Ox =~ /MOZ/) {
+            $production_reaction_rates{$reaction} *= 0.478;
+        } elsif ($Ox =~ /RADM2/ or $Ox =~ /RACM\b/) {
+            $production_reaction_rates{$reaction} *= 0.667;
+        } elsif ($Ox =~ /RACM2/) {
+            $production_reaction_rates{$reaction} *= 0.868;
+        }
         my $reshape = $production_reaction_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
