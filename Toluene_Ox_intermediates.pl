@@ -3,6 +3,7 @@
 # Version 0: Jane Coates 25/9/2014
 # Version 1: Jane Coates 21/10/2014 including assignment of XO2 producing reactions to budget
 # Version 2: Jane Coates 10/11/2014 including HO2x production and updates to script
+# Version 3: Jane Coates 26/12/2014 only RACM and MCM v3.2 in analysis and re-factoring code
 
 use strict;
 use diagnostics;
@@ -13,73 +14,33 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
-my $times = $mecca->time;
-$times -= $times->at(0);
-$times = $times(1:$NTIME-2);
-$times /= 3600;
-my @time_axis = map { $_ } $times->dog;
-my @time_blocks;
-foreach my $time (@time_axis) {
-    if ($time <= 12) {
-        push @time_blocks, "Day 1";
-    } elsif ($time > 12 and $time <= 24) {
-        push @time_blocks, "Night 1";
-    } elsif ($time > 24 and $time <= 36) {
-        push @time_blocks, "Day 2";
-    } elsif ($time > 36 and $time <= 48) {
-        push @time_blocks, "Night 2";
-    } elsif ($time > 48 and $time <= 60) {
-        push @time_blocks, "Day 3",
-    } elsif ($time > 60 and $time <= 72) {
-        push @time_blocks, "Night 3";
-    } elsif ($time > 72 and $time <= 84) {
-        push @time_blocks, "Day 4";
-    } elsif ($time > 84 and $time <= 96) {
-        push @time_blocks, "Night 4";
-    } elsif ($time > 96 and $time <= 108) {
-        push @time_blocks, "Day 5";
-    } elsif ($time > 108 and $time <= 120) {
-        push @time_blocks, "Night 5";
-    } elsif ($time > 120 and $time <= 132) {
-        push @time_blocks, "Day 6";
-    } elsif ($time > 132 and $time <= 144) {
-        push @time_blocks, "Night 6";
-    } elsif ($time > 144 and $time <= 156) {
-        push @time_blocks, "Day 7";
-    } else {
-        push @time_blocks, "Night 7";
-    }
-}
+my $dt = $mecca->dt->at(0);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @runs = qw( MCM_3.2_tagged RACM_tagging CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) RACM", "(c) CBM-IV", "(d) CB05" );
-my @mech_species = qw( TOLUENE TOL TOLUENE TOLUENE );
-#my @runs = qw( CBM4_tagging );
-#my @mechanisms = qw( CBM-IV );
-#my @mech_species = qw( TOLUENE );
-my $index = 0;
-
+my @mechanisms = ( "MCMv3.2", "RACM" );
+my @species = qw( TOLUENE TOL );
+my $index = 0; 
 my (%families, %weights, %plot_data, %legend);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $eqn_file = "$base/$run/gas.eqn";
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    my $RO2_file = "$base/$run/RO2_species.txt";
+    my $RO2_file = "$base/${mechanism}_tagged/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $RO2_file);
-    $families{"Ox_$mechanisms[$index]"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
-    $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3};
-    ($plot_data{$mechanisms[$index]}, $legend{$mechanisms[$index]}) = get_data($mech_species[$index], $mecca, $kpp, "Ox_$mechanisms[$index]");
+    $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
+    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
+    ($plot_data{$mechanism}, $legend{$mechanism}) = get_data($species[$index], $mecca, $kpp, "Ox_$mechanism");
     $index++;
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(plyr) `,
         q` library(Cairo) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
         q` library(grid) `,
         q` library(gridExtra) `,
 );
@@ -109,29 +70,25 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
 $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = time, y = rate, fill = reaction)) ;
                                                             plot = plot + geom_bar(data = subset(data, rate > 0), stat = "identity") ;
                                                             plot = plot + geom_bar(data = subset(data, rate < 0), stat = "identity") ;
+                                                            plot = plot + ylab(expression(bold(paste("Molecules (intermediate) ", s^-1, "/ Molecules (VOC) x ", 10^4)))) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + theme(axis.title.y = element_blank()) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 55, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 50)) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 70, face = "bold")) ;
-                                                            plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(panel.grid.minor = element_blank()) ;
-                                                            plot = plot + theme(axis.ticks.length = unit(0.5, "cm")) ;
-                                                            plot = plot + theme(axis.ticks.margin = unit(0.3, "cm")) ;
+                                                            plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) ;
+                                                            plot = plot + theme(plot.title = element_text(face = "bold")) ;
+                                                            plot = plot + theme(panel.grid = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 30)) ;
-                                                            plot = plot + theme(legend.key.size = unit(2.5, "cm")) ;
-                                                            plot = plot + theme(legend.justification = c(0.99, 0.01)) ;
-                                                            plot = plot + theme(legend.position = c(0.99, 0.01)) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5)) ;
+                                                            plot = plot + theme(panel.border = element_rect(colour = "black")) ;
+                                                            plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
+                                                            plot = plot + theme(legend.justification = c(1.1, -0.03)) ;
+                                                            plot = plot + theme(legend.position = c(1.1, -0.03)) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-40, 35), breaks = seq(-40, 35, 5), expand = c(0, -3)) ;
                                                             plot = plot + scale_fill_manual(limits = legend, values = my.colours) ;
                                                             return(plot) } `,
 ); 
 
-$R->set('time', [@time_blocks]);
+$R->set('time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` plots = list() `);
 foreach my $run (sort keys %plot_data) {
     $R->run(q` data = data.frame(time) `);
@@ -144,9 +101,7 @@ foreach my $run (sort keys %plot_data) {
     }
     $R->set('legend', [@{$legend{$run}}]);
     $R->set('mechanism', $run);
-    $R->run(q` data = ddply(data, .(time), colwise(sum)) `,
-            q` data = data[1:7,] `,
-            q` data = melt(data, id.vars = c("time"), variable.name = "reaction", value.name = "rate") `,
+    $R->run(q` data = gather(data, reaction, rate, -time ) `,
             q` reaction.levels = levels(factor(data$reaction)) `,
             q` data$reaction = ordered(data$reaction, levels = reaction.levels) `,
             q` plot = plotting(data, legend, mechanism) `,
@@ -156,14 +111,11 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 50, height = 35) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 6.5, height = 6.8) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] , 
-                                                    plots[[2]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[3]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
-                                                    plots[[4]] + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     nrow = 1), 
-                                       nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Molecules (intermediate) ", s^-1, "/ Molecules (VOC) x ", 10^4))), rot = 90, gp = gpar(fontsize = 85), vjust = 0.5) ) `,
+                                       nrow = 1, ncol = 1 ) `, 
         q` print(multiplot) `,
         q` dev.off() `,
 );
@@ -257,24 +209,30 @@ sub get_data {
         }
     }
 
-    my $dt = $mecca->dt->at(0); #model time step
-    my $parent_emissions;
-    if ($Ox =~ /CB/) {
-        my $name = "TOL_TOLUENE";
-        my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-    } elsif ($Ox =~ /RACM/) {
-        my $name = "TOL";
-        my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-    } else {
-        my $parent_source = $mecca->balance($parent); #in molecules (VOC)/cm3/s
-        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-    }
-    
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
+    $emission_rate *= 0.667 if ($Ox =~ /RACM/);
+
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    $production_reaction_rates{$_} /= $parent_emissions foreach (sort keys %production_reaction_rates);
-    $consumption_reaction_rates{$_} /= $parent_emissions foreach (sort keys %consumption_reaction_rates);
+    $production_reaction_rates{$_} /= $emission_rate foreach (sort keys %production_reaction_rates);
+    $consumption_reaction_rates{$_} /= $emission_rate foreach (sort keys %consumption_reaction_rates);
+
+    foreach my $reaction (keys %production_reaction_rates) {
+        my $reshape = $production_reaction_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $production_reaction_rates{$reaction} = $integrate;
+    }
+
+    foreach my $reaction (keys %consumption_reaction_rates) {
+        my $reshape = $consumption_reaction_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $consumption_reaction_rates{$reaction} = $integrate;
+    }
     
     my $sort_function = sub { $_[0]->sum };
     my @sorted_prod = sort { &$sort_function($production_reaction_rates{$b}) <=> &$sort_function($production_reaction_rates{$a}) } keys %production_reaction_rates;
