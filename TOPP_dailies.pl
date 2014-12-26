@@ -53,6 +53,7 @@ foreach my $mechanism (sort keys %TOPP) {
 #print $p, "\n";
 $R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRIv2" = "#ef6638", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `,
         q` data$VOC = factor(data$VOC, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane", "Ethene", "Propene", "Butene", "2-Methylpropene", "Isoprene", "Benzene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Ethylbenzene")) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = TOPP, colour = Mechanism, group = Mechanism)) `,
@@ -70,7 +71,8 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = TOPP, colour = Mechanism, group
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.position = "bottom") `,
+        q` plot = plot + theme(legend.position = "top") `,
+        q` plot = plot + theme(plot.title = element_blank()) `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + scale_colour_manual(values = my.colours, guide = guide_legend(nrow = 1)) `,
