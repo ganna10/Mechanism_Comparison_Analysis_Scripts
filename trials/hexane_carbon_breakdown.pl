@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Plot Ox production of carbon numbers as percentage of total Ox production for octane
+# Plot Ox production of carbon numbers as percentage of total Ox production for hexane
 # Version 0: Jane Coates 25/12/2014
 
 use strict;
@@ -31,7 +31,7 @@ foreach my $mechanism (@mechanisms) {
     $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
     $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
-    my @parents = qw( Octane );
+    my @parents = qw( Hexane );
     foreach my $NMVOC (@parents) {
         my $parent = get_mechanism_species($NMVOC, $mechanism);
         ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
@@ -103,7 +103,7 @@ $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "octane_carbon_number_Ox_production.pdf", width = 8.7, height = 10) `,
+$R->run(q` CairoPDF(file = "hexane_carbon_number_Ox_production.pdf", width = 8.7, height = 10) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -188,14 +188,10 @@ sub get_data {
     #get parent species emissions for each mechanism
     my $emission_rate;
     if ($mechanism =~ /CB/) {
-        my $name = "PAR_$VOC";
+        my $name = "PAR_NC6H14";
         my $emission_reaction = $kpp->producing_from($name, "UNITY");
         my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        if ($VOC eq "NC8H18") {
-            $emission_rate = $mecca->rate($reaction_number) / 8; #NC8H18 => 8 PAR
-        } elsif ($VOC eq "NC6H14") {
-            $emission_rate = $mecca->rate($reaction_number) / 6; #NC6H14 => 6 PAR
-        }
+        $emission_rate = $mecca->rate($reaction_number) / 6; #NC6H14 => 6 PAR
         $emission_rate = $emission_rate(1:$NTIME-2);
         $emission_rate = $emission_rate->sum * $dt;
     } else {
@@ -368,17 +364,7 @@ sub get_mechanism_species {
     my ($NMVOC, $run) = @_;
 
     my $mechanism_species;
-    if ($NMVOC eq "Octane") {
-        if ($run =~ /MCM|CRI|CB/) {
-            $mechanism_species = "NC8H18";
-        } elsif ($run =~ /MOZART/) {
-            $mechanism_species = "BIGALK";
-        } elsif ($run =~ /RADM|RACM/) {
-            $mechanism_species = "HC8";
-        } else {
-            print "No mechanism species found for $NMVOC\n";
-        }
-    } elsif ($NMVOC eq "Hexane") {
+    if ($NMVOC eq "Hexane") {
         if ($run =~ /MCM|CRI|CB/) {
             $mechanism_species = "NC6H14";
         } elsif ($run =~ /MOZART/) {
