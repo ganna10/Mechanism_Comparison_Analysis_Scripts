@@ -135,7 +135,7 @@ $R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 16.9, h
                                                     plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Molecules ", cm^-3, s^-1))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
         q` print(multiplot) `, 
         q` dev.off() `,
 );
