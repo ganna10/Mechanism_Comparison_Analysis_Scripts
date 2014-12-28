@@ -45,11 +45,9 @@ $R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"
 $R->run(q` data = data.frame() `);
 foreach my $mechanism (keys %data) {
     $R->run(q` pre = data.frame(Time) `);
-    #print "$mechanism\n";
     foreach my $ref (@{$data{$mechanism}}) {
         foreach my $reaction (sort keys %$ref) {
             next if ($reaction eq "CH3CO3");
-            #print "\t$reaction\n";
             $R->set('reaction', $reaction);
             $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
             $R->run(q` pre[reaction] = rate `);
@@ -81,7 +79,7 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "DCB + hv" = "#76afca",
                             "KET + hv" = "#1c3e3d",
                             "CH4 + OH" = "#0d3e76",
-                            "ALDX + hv" = "#cc6329",
+                            "C2H6 + OH" = "#cc6329",
                             "MEK + hv" = "#86b650" ) `,
         q` reaction.levels = c( "O1D",
                                 "HCHO + hv",
@@ -95,6 +93,10 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                                 "C2O3 + NO",
                                 "C2H4 + OH",
                                 "CXO3 + NO",
+                                "EPX + O3",
+                                "DCB + hv",
+                                "C2H6 + OH",
+                                "BIGALD + hv",
                                 "Production Others" ) `,
         q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
 );
@@ -104,7 +106,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + facet_wrap( ~ Mechanism )`,
         q` plot = plot + scale_x_discrete(expand = c(0, 0.5)) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 2e7)) `,
-        q` plot = plot + scale_fill_manual(values = my.colours, limits = reaction.levels, guide = guide_legend(nrow = 2)) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = reaction.levels, guide = guide_legend(nrow = 3)) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
         q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
@@ -118,7 +120,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + theme(legend.position = "bottom") `,
 );
 
-$R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 9, height = 9) `,
+$R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 9, height = 12.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -173,7 +175,7 @@ sub get_data {
         $production_rates{$reactants} += $rate(1:$NTIME-2);
     }
 
-    my $others = 3.5e7;
+    my $others = 3.3e7;
     foreach my $reaction (keys %production_rates) {
         if ($production_rates{$reaction}->sum < $others) {
             $production_rates{'Production Others'} += $production_rates{$reaction};
