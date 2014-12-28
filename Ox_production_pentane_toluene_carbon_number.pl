@@ -91,7 +91,7 @@ $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        q` plot = plot + ylab("Ox Production attributed to Carbon Number of Degradation Products\n(molecules (Ox) / molecules (VOC))") `,
+        q` plot = plot + ylab("Day-time Ox Production Budgets attributed to Carbon Number of Degradation Products") `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
@@ -187,36 +187,6 @@ sub get_data {
             } 
         } 
     }
-
-    #get parent species emissions for each mechanism
-    my $parent;
-    if ($VOC =~ /TOL/) {
-        if ($mechanism =~ /RA/) {
-            $parent = "TOL";
-        } elsif ($mechanism =~ /CB/) {
-            $parent = "TOL_TOLUENE";
-        } else {
-            $parent = "TOLUENE";
-        }
-    } else { #pentane
-        if ($mechanism =~ /MOZ/) {
-            $parent = "BIGALK";
-        } elsif ($mechanism =~ /RA/) {
-            $parent = "HC5";
-        } elsif ($mechanism =~ /CB/) {
-            $parent = "PAR_NC5H12";
-        } else {
-            $parent = "NC5H12";
-        }
-    }
-    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number); 
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $emission_rate = $emission_rate->sum * $dt; 
-    
-    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-    $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
     foreach my $C (keys %production_rates) {
         if ($VOC =~ /TOL/) {
