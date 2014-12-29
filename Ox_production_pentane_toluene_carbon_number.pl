@@ -92,8 +92,8 @@ $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        q` plot = plot + scale_y_continuous(expand = c(0, 5)) `,
-        q` plot = plot + ylab("Day-time Ox Production Budgets attributed to Carbon Number of Degradation Products") `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 5e-6)) `,
+        q` plot = plot + ylab("Day-time Ox Production Budgets attributed to Carbon Number of Degradation Products\n(molecules(Ox) s-1 / molecules (VOC))") `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
@@ -101,6 +101,7 @@ $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(axis.title.x = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
@@ -122,7 +123,7 @@ sub get_data {
     $families{"Ox_${mechanism}_${VOC}"} = $families{"Ox_$mechanism"};
     $families{"HO2x_${mechanism}_$VOC"} = [ qw( HO2 HO2NO2 ) ];
 
-    my ($producers, $producer_yields, %production_rates);
+    my ($producers, $producer_yields, %production_rates, $consumers, $consumer_yields, %consumption_rates);
     my @families = ("Ox_${mechanism}_$VOC", "HO2x_${mechanism}_$VOC");
     foreach my $family (@families) {
         if (exists $families{$family}) { 
@@ -133,10 +134,13 @@ sub get_data {
             });
             $producers = $kpp->producing($family);
             $producer_yields = $kpp->effect_on($family, $producers);  
+            $consumers = $kpp->consuming($family);
+            $consumer_yields = $kpp->effect_on($family, $consumers);  
         } else {
             print "No family found for $family\n";
         } 
         die "No producers found for $family\n" if (@$producers == 0);
+        die "No consumers found for $family\n" if (@$consumers == 0);
         
         for (0..$#$producers) { #get rates for all producing reactions
             my $reaction = $producers->[$_];
@@ -160,6 +164,32 @@ sub get_data {
                 } elsif ($_ =~ /HC5\b/) {
                     my $lookup = "HC5";
                     $production_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
+                }
+            }
+        }
+
+        for (0..$#$consumers) { #get rates for all consuming reactions
+            my $reaction = $consumers->[$_];
+            my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
+            next unless (defined $parent and $parent eq $VOC);
+            my $reaction_number = $kpp->reaction_number($reaction);
+            my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
+            next if ($rate->sum == 0); # do not include reactions that do not occur 
+            my ($reactants) = $kpp->reactants($reaction);
+            foreach (@$reactants) {
+                if ($_ =~ /_/) {
+                    next if ($_ =~ /XO2/ and $family =~ /RADM2|RACM|RACM2|CBM-IV|CB05/);
+                    my ($lookup, $rest) = split '_', $_;
+                    if (defined $carbons{$lookup}) { 
+                        $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
+                    } elsif ($lookup =~ /CO/) {
+                        $consumption_rates{'C1'} += $rate(1:$NTIME-2);
+                    } else {
+                        print "nothing found for $lookup\n";
+                    }
+                } elsif ($_ =~ /HC5\b/) {
+                    my $lookup = "HC5";
+                    $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
                 }
             }
         }
@@ -190,6 +220,35 @@ sub get_data {
             } 
         } 
     }
+    remove_common_processes(\%production_rates, \%consumption_rates);
+    my $parent;
+    if ($VOC =~ /TOL/) {
+        if ($mechanism =~ /RA/) {
+            $parent = "TOL";
+        } elsif ($mechanism =~ /CB/) {
+            $parent = "TOL_TOLUENE";
+        } else {
+            $parent = "TOLUENE";
+        }
+    } else { #pentane
+        if ($mechanism =~ /RA/) {
+            $parent = "HC5";
+        } elsif ($mechanism =~ /CB/) {
+            $parent = "PAR_NC5H12";
+        } elsif ($mechanism =~ /MOZ/) {
+            $parent = "BIGALK";
+        } else {
+            $parent = "TOLUENE";
+        }
+    }
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
+    
+    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
+    $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
     foreach my $C (keys %production_rates) {
         if ($VOC =~ /TOL/) {
