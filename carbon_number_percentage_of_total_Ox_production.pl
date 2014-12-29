@@ -21,7 +21,8 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
+#my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
+my @mechanisms = qw( CB05 );
 my (%n_carbon, %families, %weights, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -98,11 +99,12 @@ $R->run(q` plot = ggplot(data, aes(y = Percent, x = Mechanism, fill = C.number))
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        q` plot = plot + scale_y_continuous(labels = percent_format()) `,
+        q` plot = plot + scale_y_continuous(labels = percent_format(), expand = c(0, 0.009)) `,
         q` plot = plot + ylab("Carbon Number of Degradation Products Percent Contribution to Daily Ox Production") `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(panel.margin.x = unit(0.6, "cm")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
