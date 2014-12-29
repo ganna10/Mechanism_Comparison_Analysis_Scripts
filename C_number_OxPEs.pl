@@ -91,6 +91,8 @@ $R->run(q` plot = ggplot(data, aes(x = Mechanism, y = OxPE, fill = C.number)) `,
         q` plot = plot + facet_grid(Time ~ VOC) `,
         q` plot = plot + ylab("Ox Production Efficiency") `,
         q` plot = plot + theme_bw() `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + theme(panel.margin = unit(0.4, "cm")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
@@ -204,6 +206,23 @@ sub get_data {
     $production{$_} /= -$consumption foreach (keys %production); #normalise each processes' Ox production by total consumption
 
     foreach my $carbon (keys %production) {
+        if ($VOC =~ /TOL/) {
+            if ($mechanism =~ /MOZ/) {
+                $production{$carbon} *= 0.232;
+            } elsif ($mechanism =~ /RADM2|RACM\b/) {
+                $production{$carbon} *= 0.667;
+            } elsif ($mechanism =~ /RACM2/) {
+                $production{$carbon} *= 0.868;
+            }
+        } else { #pentane
+            if ($mechanism =~ /CB/) {
+                $production{$carbon} /= 5;
+            } elsif ($mechanism =~ /MOZ/) {
+                $production{$carbon} *= 0.146;
+            } elsif ($mechanism =~ /RA/) {
+                $production{$carbon} *= 0.264;
+            }
+        }
         my $reshape = $production{$carbon}->copy->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);

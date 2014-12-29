@@ -131,6 +131,26 @@ sub get_data {
         }
     }
 
+    foreach my $reaction (keys %carbon_loss_rate) {
+        if ($VOC =~ /TOL/) {
+            if ($mechanism =~ /MOZ/) {
+                $carbon_loss_rate{$reaction} *= 0.478;
+            } elsif ($mechanism =~ /RADM|RACM\b/) {
+                $carbon_loss_rate{$reaction} *= 0.232;
+            } elsif ($mechanism eq "RACM2") {
+                $carbon_loss_rate{$reaction} *= 0.868;
+            }
+        } else { #pentane
+            if ($mechanism =~ /CB/) {
+                $carbon_loss_rate{$reaction} /= 5;
+            } elsif ($mechanism =~ /RA/){
+                $carbon_loss_rate{$reaction} *= 0.264;
+            } elsif ($mechanism =~ /MOZ/) {
+                $carbon_loss_rate{$reaction} *= 0.146;
+            }
+        }
+    }
+
     my $overall_carbon_loss_rate = 0;
     $overall_carbon_loss_rate += $carbon_loss_rate{$_} foreach (keys %carbon_loss_rate);
     $overall_carbon_loss_rate = $overall_carbon_loss_rate->reshape($N_PER_DAY, $N_DAYS);

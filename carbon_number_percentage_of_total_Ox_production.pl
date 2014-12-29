@@ -198,30 +198,25 @@ sub get_data {
         } 
     }
 
-    #get parent species emissions for each mechanism
-#    my $dt = $mecca->dt->at(0); #model time step
-#    my $parent_emissions;
-#    if ($mechanism =~ /CBM-IV/ or $mechanism =~ /CB05/) {
-#        if ($VOC =~ /NC5H12/) {
-#            my $name = "PAR_NC5H12";
-#            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-#            $parent_emissions += $parent_source->sum * $dt / 5; #NC5H12 => 5 PAR
-#        } elsif ($VOC =~ /TOLUENE/) {
-#            my $name = "TOL_TOLUENE";
-#            my $parent_source = $mecca->balance($name); #in molecules (VOC)/cm3/s
-#            $parent_emissions += $parent_source->sum * $dt ; 
-#        } else {
-#            print "No emissions data for $VOC\n";
-#        }
-#    } else {
-#        my $parent_source = $mecca->balance($VOC); #in molecules (VOC)/cm3/s
-#        $parent_emissions += $parent_source->sum * $dt; #in molecules (VOC)/cm3
-#    }
-#    
-#    #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
-#    $production_rates{$_} /= $parent_emissions foreach (sort keys %production_rates);
     # no more normalisation by emissions as constant emissions are used
     foreach my $C (keys %production_rates) {
+        if ($VOC =~ /TOL/) {
+            if ($mechanism =~ /MOZ/) {
+                $production_rates{$C} *= 0.478;
+            } elsif ($mechanism =~ /RADM2/ or $mechanism =~ /RACM\b/) {
+                $production_rates{$C} *= 0.667;
+            } elsif ($mechanism =~ /RACM2/) {
+                $production_rates{$C} *= 0.868;
+            }
+        } else { #pentane
+            if ($mechanism =~ /MOZ/) {
+                $production_rates{$C} *= 0.146;
+            } elsif ($mechanism =~ /RADM2/ or $mechanism =~ /RACM/) {
+                $production_rates{$C} *= 0.264;
+            } elsif ($mechanism =~ /CB/) {
+                $production_rates{$C} /= 5;
+            }
+        }
         my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
