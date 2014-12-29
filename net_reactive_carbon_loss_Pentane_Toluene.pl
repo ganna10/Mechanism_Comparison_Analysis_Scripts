@@ -20,7 +20,6 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-my $index = 0;
 my (%n_carbon, %families, %weights, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -39,7 +38,6 @@ foreach my $mechanism (@mechanisms) {
         my $parent = get_mechanism_species($NMVOC, $mechanism);
         ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
     }
-    $index++;
 }
 
 my $R = Statistics::R->new();
@@ -75,25 +73,25 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + facet_wrap( ~ VOC) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + ylab(expression(bold(paste("Net Carbon Loss Rate (molecules ", cm^-3, s^-1, ")")))) `,
-        #q` plot = plot + scale_y_continuous(limits = c(-2e8, 0), breaks = seq(-2e8, 0, 2e7), label = scientific_10) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
         q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
-        q` plot = plot + theme(legend.justification = c(0.99, 0.01)) `,
-        q` plot = plot + theme(legend.position = c(0.99, 0.01)) `,
+        q` plot = plot + theme(legend.justification = c(1, 0)) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(legend.position = c(1, 0)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "net_reactive_carbon_loss_pentane_toluene.pdf") `,
+$R->run(q` CairoPDF(file = "net_reactive_carbon_loss_pentane_toluene.pdf", width = 7.5, height = 5.3) `,
         q` print(plot) `,
         q` dev.off() `,
 );
 
-$R->stop;
+$R->stop();
 
 sub get_data {
     my ($kpp, $mecca, $mechanism, $carbons, $VOC) = @_;
