@@ -84,10 +84,10 @@ foreach my $run (sort keys %data) {
                 q` pre.sort = pre.sort %>% group_by(Time) %>% do(data.frame(C.number = .$C.number, Mechanism = .$Mechanism, VOC = .$VOC, Percent = .$Rate / sum(.$Rate))) `,
                 q` data = rbind(data, pre.sort) `,
         );
-#my $p = $R->run(q` print(pre.sort) `);
-#print $p, "\n";
     }
 }
+#my $p = $R->run(q` print(data) `);
+#print $p, "\n";
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
@@ -102,6 +102,7 @@ $R->run(q` plot = ggplot(data, aes(y = Percent, x = Mechanism, fill = C.number))
         q` plot = plot + ylab("Carbon Number of Degradation Products Percent Contribution to Daily Ox Production") `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
