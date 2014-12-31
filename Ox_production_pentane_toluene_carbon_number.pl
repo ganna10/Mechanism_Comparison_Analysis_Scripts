@@ -101,7 +101,7 @@ $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(axis.title.x = element_text(face = "bold")) `,
-        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
+        #q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
@@ -246,28 +246,12 @@ sub get_data {
     my $emission_rate = $mecca->rate($reaction_number); 
     $emission_rate = $emission_rate(1:$NTIME-2);
     $emission_rate = $emission_rate->sum * $dt; 
+    $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
     foreach my $C (keys %production_rates) {
-        if ($VOC =~ /TOL/) {
-            if ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.478;
-            } elsif ($mechanism =~ /RADM2/ or $mechanism =~ /RACM\b/) {
-                $production_rates{$C} *= 0.667;
-            } elsif ($mechanism =~ /RACM2/) {
-                $production_rates{$C} *= 0.868;
-            }
-        } else { #pentane
-            if ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.146;
-            } elsif ($mechanism =~ /RADM2/ or $mechanism =~ /RACM/) {
-                $production_rates{$C} *= 0.264;
-            } elsif ($mechanism =~ /CB/) {
-                $production_rates{$C} /= 5;
-            }
-        }
         my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);

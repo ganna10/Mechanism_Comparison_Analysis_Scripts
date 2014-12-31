@@ -2,8 +2,7 @@
 # analysis of rate of reactive carbon loss during pentane degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
 # Version 1: Jane Coates 13/11/2014 refining plot for inclusion in supplement
-# Version 2: Jane Coates 10/12/2014 refactoring code for constant emission runs
-#####need to get script to print out plot#####
+# Version 2: Jane Coates 30/12/2014 refactoring code for constant emission runs
 
 use strict;
 use diagnostics;
@@ -22,8 +21,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @runs = qw( RACM_tagging ) ;
-#my @mechanisms = qw( RACM );
+#my @mechanisms = qw( CB05 RACM );
 my $NMVOC = "Pentane"; 
 my (%n_carbon, %families, %weights, %data, %legend);
 
@@ -47,6 +45,7 @@ $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
         q` library(Cairo) `,
         q` library(grid) `,
+        q` library(gridExtra) `,
 );
 
 $R->run(q` my.colours = c(  "Production Others" = "#696537",
@@ -70,29 +69,26 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "OH + ONIT" = "#58691b") `,
 );
 
-$R->run(q` plotting = function (data, mechanism) {  plot = ggplot(data, aes(x = Time, y = Carbon.loss.rate, fill = Reaction)) ;
+$R->run(q` plotting = function (data, mechanism, legend) {  plot = ggplot(data, aes(x = Time, y = Carbon.loss.rate, fill = Reaction)) ;
                                                             plot = plot + geom_bar(data = subset(data, data$Carbon.loss.rate < 0), stat = "identity") ;
                                                             plot = plot + geom_bar(data = subset(data, data$Carbon.loss.rate > 0), stat = "identity") ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + theme(axis.title.y = element_blank()) ;
-                                                            plot = plot + theme(panel.grid.major = element_blank()) ;
-                                                            plot = plot + theme(panel.grid.minor = element_blank());
-                                                            plot = plot + theme(axis.ticks.margin = unit(1, "cm")) ;
-                                                            plot = plot + theme(axis.ticks.length = unit(2, "cm")) ;
+                                                            plot = plot + theme(panel.grid = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + theme(legend.position = c(0.99, 0.01)) ;
-                                                            plot = plot + theme(legend.justification = c(0.99, 0.01)) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 150, angle = 45, vjust = 0.5)) ;
-                                                            plot = plot + theme(axis.text.y = element_text(size = 140)) ;
-                                                            plot = plot + theme(plot.title = element_text(size = 200, face = "bold")) ;
-                                                            plot = plot + theme(legend.text = element_text(size = 140)) ;
-                                                            plot = plot + theme(legend.key.size = unit(7, "cm")) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-2.4e8, 2e7), breaks = seq(-2.4e8, 2e7, 4e7)) ;
-                                                            plot = plot + scale_fill_manual(values = my.colours) ;
+                                                            plot = plot + theme(legend.position = c(1, 0)) ;
+                                                            plot = plot + theme(legend.justification = c(1, 0)) ;
+                                                            plot = plot + theme(axis.text.x = element_text(size = 20, angle = 45, vjust = 0.5)) ;
+                                                            plot = plot + theme(axis.text.y = element_text(size = 18)) ;
+                                                            plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
+                                                            plot = plot + theme(plot.title = element_text(size = 22, face = "bold")) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 14)) ;
+                                                            plot = plot + theme(panel.border = element_rect(colour = "black")) ;
                                                             return(plot) } `);
+                                                        #plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
 
 $R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` plots = list() `); #list to fill up with plots from each mechanism
@@ -106,16 +102,34 @@ foreach my $run (sort keys %data) {
         }
     }
     $R->set('mechanism', $run);
-    #$R->set('legend', [@{$legend{$run}}]);
+    $R->set('legend', [@{$legend{$run}}]);
     $R->run(q` data = gather(data, Reaction, Carbon.loss.rate, -Time) `,
             q` reaction.levels = rev(levels(factor(data$Reaction))) `,
             q` data$Reaction = ordered(data$Reaction, levels = reaction.levels) `, 
-            q` plot = plotting(data, mechanism) `,
+            q` plot = plotting(data, mechanism, legend) `,
             q` plots = c(plots, list(plot)) `,
     );
 }
 #my $p = $R->run(q` print(data) `);
 #print "$p\n";
+
+$R->run(q` CairoPDF(file = "Pentane_reactive_C_loss_reactions.pdf", width = 16.9, height = 26) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[9]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[7]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[8]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[6]] + theme(axis.title.y = element_blank()),
+                                                    plots[[2]] + theme(axis.title.y = element_blank()),
+                                                    plots[[1]] + theme(axis.title.y = element_blank()),
+                                                    nrow = 3), 
+                                       nrow = 1, ncol = 1,
+                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
+        q` print(multiplot) `, 
+        #q` print(plots[[1]]) `,
+        q` dev.off() `,
+);
 
 $R->stop();
 
@@ -208,7 +222,20 @@ sub get_data {
         push @final_sorted_data, { $_ => $carbon_gain_rate{$_} };
     } 
     push @final_sorted_data, { 'Production Others' => $carbon_gain_rate{'Production Others'} } if (defined $carbon_gain_rate{'Production Others'}); 
-    return \@final_sorted_data;
+
+    my (@positive, @negative, @legend);
+    foreach my $ref (@final_sorted_data) {#extract reaction and rates for each plot
+        foreach my $item (keys %$ref) {
+            if ($ref->{$item}->sum > 0) {
+                push @positive, $item;
+            } else {
+                push @negative, $item;
+            }
+        }
+    }
+    push @legend, reverse @positive;
+    push @legend, @negative;
+    return (\@final_sorted_data, \@legend);
 }
 
 sub get_total_C {

@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # CH3CO3 production contributions during NC5H12 degradation in MCM v3.2 and MOZART
 # Version 0: Jane Coates 18/11/2014
+# Version 1: Jane Coates 31/12/2014 re-factoring code for new model runs
 
 use strict;
 use diagnostics;
@@ -11,26 +12,24 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0); 
 my $n_per_day = 43200 / $dt;
 my $n_days = int ($NTIME / $n_per_day);
 
-#my @runs = qw( MCM_3.2_tagged MOZART_tagging );
 #my @mechanisms = ( "MCMv3.2", "MOZART-4" );
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2",  "(h) CBM-IV", "(i) CB05" );
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
 my @base_name = qw( CH3CO3 CH3CO3 CH3CO3 CH3CO3 ACO3 ACO3 ACO3 C2O3 C2O3 );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile); 
-    my $spcfile = "$base/$run/gas.spc";
+    my $spcfile = "$base/${mechanism}_tagged/gas.spc";
     my $all_tagged_species = get_tagged_species($base_name[$index], $spcfile); 
     $families{$mechanisms[$index]} = [ @$all_tagged_species ];
     ($plot_data{$mechanisms[$index]}) = get_data($kpp, $mecca, $mechanisms[$index]);
@@ -130,6 +129,13 @@ sub get_data {
     }
 
     foreach my $reaction (keys %production_reaction_rates) {
+        if ($species =~ /CB/) {
+            $production_reaction_rates{$reaction} /= 5;
+        } elsif ($species =~ /RA/){
+            $production_reaction_rates{$reaction} *= 0.264;
+        } elsif ($species =~ /MOZ/) {
+            $production_reaction_rates{$reaction} *= 0.146;
+        }
         my $reshape = $production_reaction_rates{$reaction}->copy->reshape($n_per_day, $n_days);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);

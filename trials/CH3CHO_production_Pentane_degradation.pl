@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # CH3CHO production contributions during NC5H12 degradation in MCM v3.2 and MOZART
 # Version 0: Jane Coates 18/11/2014
+# Version 1: Jane Coates 31/12/2014 re-factoring code for new model runs
 
 use strict;
 use diagnostics;
@@ -11,26 +12,24 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0); 
 my $n_per_day = 43200 / $dt;
 my $n_days = int ($NTIME / $n_per_day);
 
-#my @runs = qw( MCM_3.2_tagged MOZART_tagging );
 #my @mechanisms = ( "MCMv3.2", "MOZART-4" );
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2",  "(h) CBM-IV", "(i) CB05" );
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
 my @base_name = qw( CH3CHO CH3CHO CH3CHO CH3CHO ALD ALD ACD ALD2 ALD2 );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile); 
-    my $spcfile = "$base/$run/gas.spc";
+    my $spcfile = "$base/${mechanism}_tagged/gas.spc";
     my $all_tagged_species = get_tagged_species($base_name[$index], $spcfile); 
     $families{$mechanisms[$index]} = [ @$all_tagged_species ];
     ($plot_data{$mechanisms[$index]}) = get_data($kpp, $mecca, $mechanisms[$index]);
@@ -43,15 +42,6 @@ $R->run(q` library(ggplot2) `,
         q` library(Cairo) `,
         q` library(grid) `,
 );
-
-$R->run(q` my.colours = c(  "C2H5O" = "#6c254f", "C2H5O2 + NO" = "#6c254f", "ETHP + NO" = "#6c254f",
-                            "Production Others" = "#623812",
-                            "NO + RN13O2" = "#000000",
-                            "NO + RN11O2" = "#f9c500", "MEKO2 + NO" = "#f9c500",
-                            "HC5P + NO"  = "#0352cb", "ALKO2 + NO" = "#0352cb",
-                            "KETP + NO" = "#ef6638",
-                            "ROR" = "#0e5c28",
-                            "CXO3 + NO" = "#9bb18d") `);
 
 $R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` data = data.frame() `);
@@ -74,7 +64,6 @@ foreach my $mechanism (sort keys %plot_data) {
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
-        q` plot = plot + scale_fill_manual(values = my.colours) `,
 );
 
 $R->run(q` CairoPDF(file = "NC5H12_CH3CHO_production_contributors.pdf") `,
@@ -140,6 +129,13 @@ sub get_data {
     }
 
     foreach my $reaction (keys %production_reaction_rates) {
+        if ($species =~ /CB/) {
+            $production_reaction_rates{$reaction} /= 5;
+        } elsif ($species =~ /RA/){
+            $production_reaction_rates{$reaction} *= 0.264;
+        } elsif ($species =~ /MOZ/) {
+            $production_reaction_rates{$reaction} *= 0.146;
+        }
         my $reshape = $production_reaction_rates{$reaction}->copy->reshape($n_per_day, $n_days);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
