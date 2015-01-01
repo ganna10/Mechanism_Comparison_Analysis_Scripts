@@ -96,7 +96,7 @@ $R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time
                                                 plot = plot + theme_bw() ;
                                                 plot = plot + ggtitle(title) ;
                                                 plot = plot + theme(plot.title = element_text(face = "bold")) ;
-                                                plot = plot + ylab(expression(bold(paste("Reaction Rate (molecules ", cm ^-3, s ^-1, ")")))) ;
+                                                plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") ;
                                                 plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) ;
                                                 plot = plot + theme(axis.title.x = element_blank()) ;
                                                 plot = plot + theme(panel.grid = element_blank()) ;
@@ -122,9 +122,9 @@ foreach my $run (sort keys %data) {
         }
     }
     if ($run =~ /no/) {
-        $R->set('run', "(a) Not Tagged");
+        $R->set('run', "(b) Not Tagged");
     } else {
-        $R->set('run', "(b) Tagged");
+        $R->set('run', "(a) Tagged");
     }
     $R->run(q` pre = gather(pre, Process, Rate, -Time) `,
             q` plot = plotting(pre, run) `,
@@ -133,9 +133,9 @@ foreach my $run (sort keys %data) {
 }
 #my $p = $R->run(q` print(plot) `);
 #print $p, "\n";
-$R->run(q` CairoPDF(file = "MCMv3_2_tagged_non_tagged_Ox_budget.pdf", width = 7.5, height = 5.3) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
-                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+$R->run(q` CairoPDF(file = "MCMv3_2_tagged_non_tagged_Ox_budget.pdf", width = 8.5, height = 5.8) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[2]] ,
+                                                    plots[[1]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     nrow = 1), 
                                        nrow = 1, ncol = 1) `,
         q` print(multiplot) `,
