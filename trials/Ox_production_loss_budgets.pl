@@ -1,156 +1,115 @@
-#! /usr/bin/env perl
-# Plot Ox production and consumption budgets 
-# Version 0: Jane Coates 26/11/2014
+#!/usr/bin/env perl 
+# Ox production budget plots from all tagged mechanisms, lumped species are de-lumped into constituent VOC
+# Version 0: Jane Coates 03/01/2015
 
 use strict;
 use diagnostics;
-use KPP;
-use MECCA;
 use PDL;
 use PDL::NiceSlice;
+use MECCA;
+use KPP;
 use Statistics::R;
 
-my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $base_dir = "/local/home/coates/MECCA/";
+my $mecca = MECCA->new("$base_dir/CB05_tagged/boxmodel"); 
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2",  "(h) CBM-IV", "(i) CB05" );
-#my @runs = qw( CB05_tagging );
-#my @mechanisms = qw( CB05 );
-my $index = 0;
-my (%plot_data, %families, %weights);
+my (%data, %families, %weights);
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 ); 
+#my @mechanisms = qw( RACM2 );
 
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
-    my $mecca = MECCA->new($boxmodel);
-    my $eqn_file = "$base/$run/gas.eqn";
-    my $kpp = KPP->new($eqn_file);
-    my $ro2_file = "$base/$run/RO2_species.txt";
-    my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2_file);
-    $families{"Ox_$mechanisms[$index]"} = [ qw( O3 O O1D NO2 NO3 HO2NO2 N2O5 ), @no2_reservoirs ];
-    $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
-    ($plot_data{$mechanisms[$index]}) = get_data($mecca, $kpp, $mechanisms[$index]);
-    $index++;
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base_dir/${mechanism}_tagged/boxmodel";
+    my $mecca = MECCA->new($boxmodel); 
+    my $eqnfile = "$base_dir/${mechanism}_tagged/gas.eqn";
+    my $kpp = KPP->new($eqnfile); 
+    my $ro2file = "$base_dir/${mechanism}_tagged/RO2_species.txt";
+    my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
+    $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ]; 
+    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3 };
+    $data{$mechanism} = get_data($mecca, $kpp, $mechanism);
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
         q` library(Cairo) `,
+        q` library(dplyr) `,
 );
 
-$R->set('Time', [("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7")]);
+$R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` data = data.frame() `);
-
-foreach my $mechanism (sort keys %plot_data) {
+foreach my $mechanism (keys %data) {
     $R->run(q` pre = data.frame(Time) `);
-    foreach my $ref (@{$plot_data{$mechanism}}) {
-        foreach my $species (sort keys %$ref) {
-            my $chemical = get_chemical_name($species);
-            $R->set('species', $chemical);
-            $R->set('rate', [map { $_ } $ref->{$species}->dog]);
-            $R->run(q` pre[species] = rate `);
+    foreach my $ref (@{$data{$mechanism}}) {
+        foreach my $process (sort keys %$ref) {
+            my $voc = get_chemical_name($process);
+            $R->set('voc', $voc);
+            $R->set('rate', [ map { $_ } $ref->{$process}->dog ]);
+            $R->run(q` pre[voc] = rate `);
         }
     }
     $R->set('mechanism', $mechanism);
-    $R->run(q` pre = gather(pre, Species, Rate, -Time) `,
-            q` pre$Mechanism = rep(mechanism, length(pre$Time)) `,
+    $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
+            q` pre = gather(pre, VOC, Rate, -Time, -Mechanism) `,
             q` data = rbind(data, pre) `,
     );
 }
-#my $p = $R->run(q` print(data) `);
-#print "$p\n";
 
-$R->run(q` my.colours = c(  "Production Others" = "#696537", 
-                            "Methane" = "#6c254f",
-                            "CO" = "#f9c500", 
-                            "Consumption Others" = "#0352cb", 
-                            "O3 = UNITY" = "#0e5c28", 
-                            "N2O5 = NA + NA" = "#e7e85e", 
-                            "Butane" = "#ef6638", 
-                            "Pentane" = "#b569b3", 
-                            "2-Methylbutane" = "#4c9383", 
-                            "NO2 + OH = HNO3" = "#86b650", 
-                            "O1D = OH + OH" = "#cc6329", 
-                            "Propane" = "#2b9eb3", 
+$R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
+        q` VOC.levels = c(  "Methane ", "CO ", "Ethane ", "Propane ", "2-Methylpropane ", "Butane ", "Pentane ", "2-Methylbutane ", "Hexane ", "Ethene ", "Propene ", "2-Methylpropene ", "Isoprene ", "Toluene ", "m-Xylene ", "o-Xylene ", "p-Xylene ", "Production Others" ) `, 
+        q` my.colours = c(  "Production Others" = "#696537", 
+                            "Methane " = "#6c254f",
+                            "CO " = "#f9c500", 
+                            "Ethane " = "#0352cb", 
+                            "Propane " = "#0e5c28", 
+                            "2-Methylpropane " = "#e7e85e", 
+                            "Butane " = "#ef6638", 
+                            "Pentane " = "#b569b3", 
+                            "2-Methylbutane " = "#4c9383", 
+                            "Hexane " = "#86b650", 
+                            "Ethene " = "#cc6329", 
+                            "Propene " = "#2b9eb3", 
                             "2-Methylpropene " = "#f7c56c",
                             "Isoprene " = "#0c3f78",
-                            "Toluene" = "#8c1531",
+                            "Toluene " = "#8c1531",
                             "m-Xylene " = "#6db875",
                             "o-Xylene " = "#f3aa7f",
-                            "p-Xylene " = "#be2448" ) `);
-
-$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Species)) `,
-        q` plot = plot + geom_bar(data = subset(data, Rate < 0), stat = "identity") `,
-        q` plot = plot + geom_bar(data = subset(data, Rate > 0), stat = "identity") `,
-        q` plot = plot + facet_wrap( ~ Mechanism) `,
-        q` plot = plot + scale_fill_manual(values = my.colours) `,
+                            "p-Xylene " = "#be2448" ) `,
 );
 
-$R->run(q` CairoPDF(file = "Ox_production_consumpion_budgets.pdf") `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC )) `,
+    #q` plot = plot + geom_bar(data = subset(data, Rate > 0) , stat = "identity") `,
+        q` plot = plot + geom_bar(data = subset(data, Rate < 0) , stat = "identity") `,
+        q` plot = plot + facet_wrap( ~ Mechanism) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + ylab(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")")))) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.4)) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        #q` plot = plot + theme(legend.position = "bottom") `,
+        #q` plot = plot + scale_fill_manual(values = my.colours, limits = VOC.levels, guide = guide_legend(nrow = 3)) `,
+);
+
+$R->run(q` CairoPDF( file = "Ox_production_loss_budgets_by_VOC_de-allocated.pdf" , width = 9, height = 12.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
 
 $R->stop();
 
-sub get_chemical_name {
-    my ($VOC) = @_;
-    my $chemical_species;
-    if ($VOC eq 'CO + OH = HO2' or $VOC eq 'OH + CO = HO2') {
-        $chemical_species = 'CO';
-    } elsif ($VOC eq 'CH4') {
-        $chemical_species = 'Methane';
-    } elsif ($VOC eq 'C2H6' or $VOC eq 'ETH') {
-        $chemical_species = 'Ethane';
-    } elsif ($VOC eq 'C3H8' or $VOC eq 'HC3') {
-        $chemical_species = 'Propane';
-    } elsif ($VOC eq 'NC4H10') {
-        $chemical_species = 'Butane';
-    } elsif ($VOC eq 'IC4H10') {
-        $chemical_species = '2-Methylpropane';
-    } elsif ($VOC eq 'NC5H12' or $VOC eq 'BIGALK' or $VOC eq 'HC5') {
-        $chemical_species = 'Pentane';
-    } elsif ($VOC eq 'IC5H12') {
-        $chemical_species = '2-Methylbutane';
-    } elsif ($VOC eq 'NC6H14') {
-        $chemical_species = 'Hexane';
-    } elsif ($VOC eq 'C2H4' or $VOC eq 'OL2' or $VOC eq 'ETE') {
-        $chemical_species = 'Ethene';
-    } elsif ($VOC eq 'C3H6' or $VOC eq 'OLT') {
-        $chemical_species = 'Propene';
-    } elsif ($VOC eq 'OLI') {
-        $chemical_species = '2-Methylpropene';
-    } elsif ($VOC eq 'C5H8' or $VOC eq 'ISO' or $VOC eq 'ISOP') {
-        $chemical_species = "Isoprene";
-    } elsif ($VOC eq 'TOLUENE' or $VOC eq 'TOL') {
-        $chemical_species = 'Toluene';
-    } elsif ($VOC eq 'MXYL' or $VOC eq 'XYM' or $VOC eq 'XYL') {
-        $chemical_species = "m-Xylene";
-    } elsif ($VOC eq 'OXYL' or $VOC eq 'XYO') {
-        $chemical_species = 'o-Xylene';
-    } elsif ($VOC eq 'PXYL' or $VOC eq 'XYP') {
-        $chemical_species = "p-Xylene";
-    } elsif ($VOC eq 'Production Others') {
-        $chemical_species = 'Production Others';
-    } elsif ($VOC eq 'Consumption Others') {
-        $chemical_species = 'Consumption Others';
-    } elsif ($VOC eq "OH + NO2 = HNO3") {
-        $chemical_species = "NO2 + OH = HNO3";
-    } else {
-        print "No chemical species found for $VOC\n";
-        $chemical_species = $VOC;
-    }
-    return $chemical_species;
-}
-
 sub get_data {
     my ($mecca, $kpp, $mechanism) = @_;
-    $families{"HO2x"} = [ qw( HO2 HO2NO2 )];
+    $families{"HO2x"} = [ qw( HO2 HO2NO2 ) ];
     my @loop = ("Ox_$mechanism", "HO2x");
     my (%production, %consumption);
 
@@ -167,7 +126,7 @@ sub get_data {
             $consumers = $kpp->consuming($species);
             $consumer_yields = $kpp->effect_on($species, $consumers);
         } else {
-            print "No family found for $species\n";
+            print "No family for $species\n";
         }
         print "No producers found for $species\n" if (@$producers == 0);
         print "No consumers found for $species\n" if (@$consumers == 0);
@@ -179,10 +138,11 @@ sub get_data {
             next if ($rate->sum == 0);
             my ($number, $parent) = split /_/, $reaction;
             if (defined $parent) {
-                $production{$parent} += $rate(1:$NTIME-2);
+                $production{$species}{$parent} += $rate(1:$NTIME-2);
             } else {
-                my $reaction_string = $kpp->reaction_string($reaction);
-                $production{$reaction_string} += $rate(1:$NTIME-2);
+                my $string = $kpp->reaction_string($reaction);
+                $string = "CO " if ($string =~ /CO \+ OH|OH \+ CO/);
+                $production{$species}{$string} += $rate(1:$NTIME-2);
             }
         }
 
@@ -193,83 +153,144 @@ sub get_data {
             next if ($rate->sum == 0);
             my ($number, $parent) = split /_/, $reaction;
             if (defined $parent) {
-                $consumption{$parent} += $rate(1:$NTIME-2);
+                $consumption{$species}{$parent} += $rate(1:$NTIME-2);
             } else {
-                my $reaction_string = $kpp->reaction_string($reaction);
-                $consumption{$reaction_string} += $rate(1:$NTIME-2);
+                my $string = $kpp->reaction_string($reaction);
+                $string = "CO " if ($string =~ /CO \+ OH|OH \+ CO/);
+                $consumption{$species}{$string} += $rate(1:$NTIME-2);
             }
         }
     }
-    remove_common_processes(\%production, \%consumption);
+    remove_common_processes($production{"HO2x"}, $consumption{"HO2x"});
+    my $total_ho2x_production = zeroes(PDL::float, $NTIME-2);
+    $total_ho2x_production += $production{"HO2x"}{$_} foreach (keys %{$production{"HO2x"}});
+    
+    if ($mechanism =~ /CRI/) {
+        foreach my $reaction (keys %{$production{'HO2x'}}) {
+            $production{"Ox_$mechanism"}{$reaction} += $production{"Ox_$mechanism"}{'HO2 + NO = OH + NO2'} * $production{'HO2x'}{$reaction} / $total_ho2x_production;
+            $consumption{"Ox_$mechanism"}{$reaction} += $consumption{"Ox_$mechanism"}{'HO2 + O3 = OH'} * $consumption{'HO2x'}{$reaction} / $total_ho2x_production;
+            $consumption{"Ox_$mechanism"}{$reaction} += $consumption{"Ox_$mechanism"}{'HO2 + NO3 = OH + NO2'} * $consumption{'HO2x'}{$reaction} / $total_ho2x_production;
+        }
+        delete $production{"Ox_$mechanism"}{'HO2 + NO = OH + NO2'};
+        delete $consumption{"Ox_$mechanism"}{'HO2 + O3 = OH'};
+        delete $consumption{"Ox_$mechanism"}{'HO2 + NO3 = OH + NO2'};
+    } else {
+        foreach my $reaction (keys %{$production{'HO2x'}}) {
+            $production{"Ox_$mechanism"}{$reaction} += $production{"Ox_$mechanism"}{'HO2 + NO = NO2 + OH'} * $production{'HO2x'}{$reaction} / $total_ho2x_production;
+            $consumption{"Ox_$mechanism"}{$reaction} += $consumption{"Ox_$mechanism"}{'HO2 + O3 = OH'} * $consumption{'HO2x'}{$reaction} / $total_ho2x_production;
+            $consumption{"Ox_$mechanism"}{$reaction} += $consumption{"Ox_$mechanism"}{'HO2 + NO3 = NO2 + OH'} * $consumption{'HO2x'}{$reaction} / $total_ho2x_production;
+        }
+        delete $production{"Ox_$mechanism"}{'HO2 + NO = NO2 + OH'};
+        delete $consumption{"Ox_$mechanism"}{'HO2 + O3 = OH'};
+        delete $consumption{"Ox_$mechanism"}{'HO2 + NO3 = NO2 + OH'};
+    }
+    remove_common_processes($production{"Ox_$mechanism"}, $consumption{"Ox_$mechanism"});
 
-    my $others = 4e8;
-    foreach my $item (keys %production) {
-        if ($production{$item}->sum < $others) {
-            $production{"Production Others"} += $production{$item};
-            delete $production{$item};
+    foreach my $process (keys %{$production{"Ox_$mechanism"}}) {
+        my $reshape = $production{"Ox_$mechanism"}{$process}->copy->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $production{"Ox_$mechanism"}{$process} = $integrate;
+    }
+
+    foreach my $process (keys %{$consumption{"Ox_$mechanism"}}) {
+        my $reshape = $consumption{"Ox_$mechanism"}{$process}->copy->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $integrate = $integrate(0:13:2);
+        $consumption{"Ox_$mechanism"}{$process} = $integrate;
+    }
+
+    #de-lump lumped VOC to MCM species
+    if ($mechanism eq "RADM2" or $mechanism eq "RACM") {
+        $production{"Ox_$mechanism"}{"C3H8"} = 0.628 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.243 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.129 * $production{"Ox_$mechanism"}{"HC3"};
+        delete $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.264 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.615 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.086 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.035 * $production{"Ox_$mechanism"}{"HC5"};
+        delete $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"C3H6"} = 0.875 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.125 * $production{"Ox_$mechanism"}{"OLT"}; 
+        delete $production{"Ox_$mechanism"}{"OLT"};
+        $production{"Ox_$mechanism"}{"BENZENE"} = 0.232 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.667 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.101 * $production{"Ox_$mechanism"}{"TOL"};
+        delete $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"MXYL"} = 0.5 * $production{"Ox_$mechanism"}{"XYL"};
+        $production{"Ox_$mechanism"}{"OXYL"} = 0.244 * $production{"Ox_$mechanism"}{"XYL"};
+        $production{"Ox_$mechanism"}{"PXYL"} = 0.256 * $production{"Ox_$mechanism"}{"XYL"};
+        delete $production{"Ox_$mechanism"}{"XYL"};
+    } elsif ($mechanism eq "RACM2") {
+        $production{"Ox_$mechanism"}{"C3H8"} = 0.628 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.243 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.129 * $production{"Ox_$mechanism"}{"HC3"};
+        delete $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.264 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.615 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.086 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.035 * $production{"Ox_$mechanism"}{"HC5"};
+        delete $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"C3H6"} = 0.875 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.125 * $production{"Ox_$mechanism"}{"OLT"}; 
+        delete $production{"Ox_$mechanism"}{"OLT"};
+        $production{"Ox_$mechanism"}{"BENZENE"} = 0.232 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.667 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.101 * $production{"Ox_$mechanism"}{"TOL"};
+        delete $production{"Ox_$mechanism"}{"TOL"};
+    } elsif ($mechanism =~ /MOZ/) {
+        $production{"Ox_$mechanism"}{"BENZENE"} = 0.166 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"TOLUENE_MOZART"} = 0.478 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"MXYL"} = 0.142 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"OXYL"} = 0.069 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"PXYL"} = 0.073 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.073 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"TOLUENE"} = $production{"Ox_$mechanism"}{"TOLUENE_MOZART"};
+        delete $production{"Ox_$mechanism"}{"TOLUENE_MOZART"}; 
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.285 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.151 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.146 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.340 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.048 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.020 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC8H18"} = 0.010 * $production{"Ox_$mechanism"}{"BIGALK"};
+        delete $production{"Ox_$mechanism"}{"BIGALK"};
+    }
+
+    my $others = 8.8e7;
+    foreach my $process (keys %{$production{"Ox_$mechanism"}}) {
+        if ($production{"Ox_$mechanism"}{$process}->sum < $others) {
+            $production{"Ox_$mechanism"}{"Production Others"} += $production{"Ox_$mechanism"}{$process};
+            delete $production{"Ox_$mechanism"}{$process};
         }
     }
 
-    foreach my $item (keys %consumption) {
-        if ($consumption{$item}->sum > -$others) {
-            $consumption{"Consumption Others"} += $consumption{$item};
-            delete $consumption{$item};
+    foreach my $process (keys %{$consumption{"Ox_$mechanism"}}) {
+        if ($consumption{"Ox_$mechanism"}{$process}->sum > -$others) {
+            $consumption{"Ox_$mechanism"}{"Consumption Others"} += $consumption{"Ox_$mechanism"}{$process};
+            delete $consumption{"Ox_$mechanism"}{$process};
         }
     }
 
-    foreach my $item (keys %production) {
-        my $reshape = $production{$item}->copy->reshape($N_PER_DAY, $N_DAYS);
-        my $integrate = $reshape->sumover;
-        $production{$item} = $integrate;
+    my $sort_function = sub { $_[0]->sum } ;
+    my @sorted_prod = sort { &$sort_function($production{"Ox_$mechanism"}{$b}) <=> &$sort_function($production{"Ox_$mechanism"}{$a}) } keys %{$production{"Ox_$mechanism"}};
+    my @sorted_cons = reverse sort { &$sort_function($consumption{"Ox_$mechanism"}{$b}) <=> &$sort_function($consumption{"Ox_$mechanism"}{$a}) } keys %{$consumption{"Ox_$mechanism"}};
+    my @sorted_data;
+    foreach (@sorted_cons) {
+        next if ($_ eq "Consumption Others");
+        push @sorted_data, { $_ => $consumption{"Ox_$mechanism"}{$_} };
     }
-
-    foreach my $item (keys %consumption) {
-        my $reshape = $consumption{$item}->copy->reshape($N_PER_DAY, $N_DAYS);
-        my $integrate = $reshape->sumover;
-        $consumption{$item} = $integrate;
+    push @sorted_data, {"Consumption Others" => $consumption{"Ox_$mechanism"}{"Consumption Others"} } if (defined $consumption{"Ox_$mechanism"}{"Consumption Others"});
+    foreach (@sorted_prod) {
+        next if ($_ eq 'Production Others' or $_ eq 'Methane ' or $_ eq 'CO ');
+        push @sorted_data, { $_ => $production{"Ox_$mechanism"}{$_} }
     }
-
-    my $sort_function = sub { $_[0]->sum };
-
-    my @sorted_prod = sort { &$sort_function($production{$b}) <=> &$sort_function($production{$a}) } keys %production;
-    my @sorted_cons = reverse sort { &$sort_function($consumption{$b}) <=> &$sort_function($consumption{$a}) } keys %consumption;
-
-    my @final_sorted_data;
-    foreach (@sorted_cons) { #sum up rates of reactions, starting with reaction with lowest sum, consumption others added separately 
-        next if ($_ eq 'Consumption Others');
-        push @final_sorted_data, { $_ => $consumption{$_} };
-    }
-
-    push @final_sorted_data, { 'Consumption Others' => $consumption{'Consumption Others'} } if (defined $consumption{'Consumption Others'}); 
-    foreach (@sorted_prod) { #sum up rates of reactions, starting with reaction with lowest sum, production others added separately 
-        next if ($_ eq 'Production Others');
-        push @final_sorted_data, { $_ => $production{$_} };
-    }
-
-    push @final_sorted_data, { 'Production Others' => $production{'Production Others'} } if (defined $production{'Production Others'}); 
-    return \@final_sorted_data;
+    push @sorted_data, { 'Production Others' => $production{"Ox_$mechanism"}{'Production Others'} } if (defined $production{"Ox_$mechanism"}{'Production Others'});
+    unshift @sorted_data, { 'CO ' => $production{"Ox_$mechanism"}{'CO '} } if (defined $production{"Ox_$mechanism"}{'CO '});
+    unshift @sorted_data, { 'Methane ' => $production{"Ox_$mechanism"}{'Methane '} } if (defined $production{"Ox_$mechanism"}{'Methane '});
+    return \@sorted_data;
 }
-
-sub get_no2_reservoirs { #get species that are produced when radical species react with NO2
-    my ($kpp, $file) = @_; 
-    open my $in, '<:encoding(utf-8)', $file or die $!; 
-    my @ro2;
-    for (<$in>) {
-        push @ro2, split /\s+/, $_; 
-    }
-    close $in;
-    my @no2_reservoirs;
-    foreach my $ro2 (@ro2) {
-        my ($reactions) = $kpp->reacting_with($ro2, 'NO2');
-        foreach my $reaction (@$reactions) {
-            my ($products) = $kpp->products($reaction);
-            if (@$products == 1) {
-                push @no2_reservoirs, $products->[0];
-            }   
-        }   
-    }   
-    return @no2_reservoirs;
-} 
 
 sub remove_common_processes {
     my ($production, $consumption) = @_;
@@ -303,3 +324,78 @@ sub remove_common_processes {
         }
     }
 } 
+
+sub get_no2_reservoirs { #get species that are produced when radical species react with NO2
+    my ($kpp, $file) = @_; 
+    open my $in, '<:encoding(utf-8)', $file or die $!; 
+    my @ro2;
+    for (<$in>) {
+        push @ro2, split /\s+/, $_; 
+    }
+    close $in;
+    my @no2_reservoirs;
+    foreach my $ro2 (@ro2) {
+        my ($reactions) = $kpp->reacting_with($ro2, 'NO2');
+        foreach my $reaction (@$reactions) {
+            my ($products) = $kpp->products($reaction);
+            if (@$products == 1) {
+                push @no2_reservoirs, $products->[0];
+            }   
+        }   
+    }   
+    return @no2_reservoirs;
+} 
+
+sub get_chemical_name {
+    my ($VOC) = @_;
+    my $chemical_species;
+    if ($VOC eq 'CO ') {
+        $chemical_species = 'CO ';
+    } elsif ($VOC eq 'CH4') {
+        $chemical_species = 'Methane ';
+    } elsif ($VOC eq 'C2H6' or $VOC eq 'ETH') {
+        $chemical_species = 'Ethane ';
+    } elsif ($VOC eq 'C3H8' or $VOC eq 'HC3') {
+        $chemical_species = 'Propane ';
+    } elsif ($VOC eq 'NC4H10') {
+        $chemical_species = 'Butane ';
+    } elsif ($VOC eq 'IC4H10') {
+        $chemical_species = '2-Methylpropane ';
+    } elsif ($VOC eq 'NC5H12' or $VOC eq 'BIGALK' or $VOC eq 'HC5') {
+        $chemical_species = 'Pentane ';
+    } elsif ($VOC eq 'IC5H12') {
+        $chemical_species = '2-Methylbutane ';
+    } elsif ($VOC eq 'NC6H14') {
+        $chemical_species = 'Hexane ';
+    } elsif ($VOC eq 'NC7H16') {
+        $chemical_species = "Heptane ";
+    } elsif ($VOC eq 'NC8H18' or $VOC eq 'HC8') {
+        $chemical_species = "Octane ";
+    } elsif ($VOC eq 'C2H4' or $VOC eq 'OL2' or $VOC eq 'ETE') {
+        $chemical_species = 'Ethene ';
+    } elsif ($VOC eq 'C3H6' or $VOC eq 'OLT') {
+        $chemical_species = 'Propene ';
+    } elsif ($VOC eq 'BUT1ENE' or $VOC eq 'BIGENE') {
+        $chemical_species = "Butene";
+    } elsif ($VOC eq 'MEPROPENE' or $VOC eq 'OLI') {
+        $chemical_species = '2-Methylpropene ';
+    } elsif ($VOC eq 'C5H8' or $VOC eq 'ISO' or $VOC eq 'ISOP') {
+        $chemical_species = "Isoprene ";
+    } elsif ($VOC eq 'BEN' or $VOC eq 'BENZENE') {
+        $chemical_species = "Benzene ";
+    } elsif ($VOC eq 'TOLUENE' or $VOC eq 'TOL') {
+        $chemical_species = 'Toluene ';
+    } elsif ($VOC eq 'MXYL' or $VOC eq 'XYM' or $VOC eq 'XYL') {
+        $chemical_species = "m-Xylene ";
+    } elsif ($VOC eq 'OXYL' or $VOC eq 'XYO') {
+        $chemical_species = 'o-Xylene ';
+    } elsif ($VOC eq 'PXYL' or $VOC eq 'XYP') {
+        $chemical_species = "p-Xylene ";
+    } elsif ($VOC eq 'EBENZ') {
+        $chemical_species = "Ethylbenzene ";
+    } elsif ($VOC =~ /Others|=/) {
+        $chemical_species = $VOC;
+    } else {
+        print "No chemical species found for $VOC\n";
+    }
+}
