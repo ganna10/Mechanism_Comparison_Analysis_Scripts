@@ -18,7 +18,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @mechanisms = qw(CB05);
+#my @mechanisms = qw(CB05 CBM-IV);
 my (%families, %weights, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -62,8 +62,9 @@ foreach my $run (sort keys %data) {
     }
 }
 $R->run(q` data = data[-1, ] `);
-#my $p = $R->run(q` print(data) `);
-#print $p, "\n";
+$R->run(q` data = arrange(data, desc(Yield)) `);
+my $p = $R->run(q` print(data) `);
+print $p, "\n";
 
 $R->run(q` plot = ggplot(data, aes(x = Yield, y = Day1, colour = Mechanism)) `,
         q` plot = plot + geom_point() `,

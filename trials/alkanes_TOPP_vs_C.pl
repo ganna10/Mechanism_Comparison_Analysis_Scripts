@@ -16,7 +16,7 @@ foreach my $file (@files) {
     my @lines = split /\n/, read_file("$dir/$file");
     (my $mechanism = $file) =~ s/^(.*?)_TOPP_values\.txt/$1/;
     foreach my $line (@lines) {
-        next if ($line =~ /^CH4/);
+        next unless ($line =~ /^NC|^IC|^C2H6|^C3H8|^HC|^BIGALK|^ETH/);
         my ($VOC, $TOPPs) = split / => /, $line;
         $TOPPs =~ s/\s+/:/g;
         my @TOPPs = split /:/, $TOPPs;
@@ -36,23 +36,20 @@ $R->run(q` library(ggplot2) `,
         q` library(Cairo) `,
 );
 
-$R->set('Cs', [1..8]);
-$R->run(q` first.day.data = data.frame(Mechanism = as.numeric(0), VOC = as.numeric(0), Functionality = as.numeric(0), C.number = as.numeric(0), TOPP = as.numeric(0)) `,
-        q` cumulative.data = data.frame(Mechanism = as.numeric(0), VOC = as.numeric(0), Functionality = as.numeric(0), C.number = as.numeric(0), TOPP = as.numeric(0)) `,
+$R->run(q` first.day.data = data.frame(Mechanism = as.numeric(0), VOC = as.numeric(0), C.number = as.numeric(0), TOPP = as.numeric(0)) `,
+        q` cumulative.data = data.frame(Mechanism = as.numeric(0), VOC = as.numeric(0), C.number = as.numeric(0), TOPP = as.numeric(0)) `,
 );
 foreach my $mechanism (sort keys %TOPP_first_day) {
     $R->set('mechanism', $mechanism);
     foreach my $VOC (sort keys %{$TOPP_first_day{$mechanism}}) {
         my $C_number = get_C_number($VOC);
-        my $group = get_functionality($VOC);
         my $name = get_chemical_name($VOC);
         $R->set('c.number', $C_number);
-        $R->set('group', $group);
         $R->set('voc', $name);
         $R->set('first.day', $TOPP_first_day{$mechanism}{$VOC});
         $R->set('cumulative', $TOPP_cumulative{$mechanism}{$VOC});
-        $R->run(q` cumulative.data = rbind(cumulative.data, c(mechanism, voc, group, c.number, cumulative)) `);
-        $R->run(q` first.day.data = rbind(first.day.data, c(mechanism, voc, group, c.number, first.day)) `);
+        $R->run(q` cumulative.data = rbind(cumulative.data, c(mechanism, voc, c.number, cumulative)) `);
+        $R->run(q` first.day.data = rbind(first.day.data, c(mechanism, voc, c.number, first.day)) `);
     }
 }
 
@@ -66,12 +63,11 @@ $R->run(q` lm_eqn = function(df){   m = lm(TOPP ~ C.number, df);
                                     as.character(as.expression(eq)) } `);
                                                     
 $R->run(q` plotting = function (data, filename) {   eq = ddply(data, .(Mechanism), lm_eqn);
-                                                    summary = lm(TOPP ~ C.number, data) ;
-                                                    plot = ggplot(data, aes(x = C.number, y = TOPP, colour = VOC, group = VOC)) ;
+                                                    plot = ggplot(data, aes(x = C.number, y = TOPP, colour = VOC)) ;
                                                     plot = plot + geom_point(shape = 19) ;
                                                     plot = plot + theme_bw();
                                                     plot = plot + geom_smooth(aes(group = 1), method = "lm", se = FALSE, colour = "black");
-                                                    plot = plot + geom_text(data = eq, aes(x = 2.5, y = 1.5, label = V1), size = 1.3, parse = TRUE, inherit.aes = FALSE);
+                                                    plot = plot + geom_text(data = eq, aes(x = 2.5, y = 1.5, label = V1), size = 1.3, parse = TRUE);
                                                     plot = plot + facet_wrap( ~ Mechanism);
                                                     plot = plot + xlab("Carbon Number of VOC");
                                                     plot = plot + ylab("TOPP (molecules(Ox)/molecules(VOC))");
@@ -88,29 +84,11 @@ $R->run(q` plotting = function (data, filename) {   eq = ddply(data, .(Mechanism
                                                     dev.off() } `);
     
 $R->run(q` first.day.data = first.day.data[-1,] `,
-        q` first.factor = factor(first.day.data$TOPP) `,
-        q` first.factor = as.numeric(levels(first.factor)[first.factor]) `,
-        q` first.day.data$TOPP = first.factor `,
-        q` alkane.first.day = filter(first.day.data, Functionality == "Alkane") `,
-        #q` alkene.first.day = filter(first.day.data, Functionality == "Alkene") `,
-        #q` aromatic.first.day = filter(first.day.data, Functionality == "Aromatic") `,
-        #q` aromatic.first.day = filter(aromatic.first.day, Mechanism != "MOZART-4") `,
-        q` plotting(alkane.first.day, "Alkanes_first_day_TOPP_vs_C_number.pdf") `,
-        #q` plotting(alkene.first.day, "Alkenes_first_day_TOPP_vs_C_number.pdf") `,
-        #q` plotting(aromatic.first.day, "Aromatics_first_day_TOPP_vs_C_number.pdf") `,
+        q` plotting(first.day.data, "Alkanes_first_day_TOPP_vs_C_number.pdf") `,
         q` cumulative.data = cumulative.data[-1,] `,
-        q` cumulative.factor = factor(cumulative.data$TOPP) `,
-        q` cumulative.factor = as.numeric(levels(cumulative.factor)[cumulative.factor]) `,
-        q` cumulative.data$TOPP = cumulative.factor `,
-        q` alkane.cumulative = filter(cumulative.data, Functionality == "Alkane") `,
-        #q` alkene.cumulative = filter(cumulative.data, Functionality == "Alkene") `,
-        #q` aromatic.cumulative = filter(cumulative.data, Functionality == "Aromatic") `,
-        #q` aromatic.cumulative = filter(aromatic.cumulative, Mechanism != "MOZART-4") `,
-        q` plotting(alkane.cumulative, "Alkanes_cumulative_TOPP_vs_C_number.pdf") `,
-        #q` plotting(alkene.cumulative, "Alkenes_cumulative_TOPP_vs_C_number.pdf") `,
-        #q` plotting(aromatic.cumulative, "Aromatics_cumulative_TOPP_vs_C_number.pdf") `,
+        #q` plotting(cumulative.data, "Alkanes_cumulative_TOPP_vs_C_number.pdf") `,
 );
-my $p = $R->run(q` print(ddply(alkane.first.day, .(Mechanism), lm_eqn)) `);
+my $p = $R->run(q` print(first.day.data) `);
 print $p, "\n";
 
 $R->stop();
