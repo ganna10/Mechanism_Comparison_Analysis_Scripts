@@ -9,13 +9,14 @@ use diagnostics;
 use Statistics::R;
 
 my %TOPP;
-my $base = "/local/home/coates/Documents/Analysis/2014_Mechanism_comparison_paper";
+my $base = "/local/home/coates/Documents/Analysis/2014_Mechanism_comparison_paper/TOPP_plots";
 opendir DIR, $base or die "Can't open $base : $!";
-my @daily_TOPP_files = grep { $_ =~ /_TOPP_values/ } readdir DIR;
+my @daily_TOPP_files = grep { $_ =~ /_TOPP_values\.txt/ } readdir DIR;
 closedir DIR;
 
 foreach my $file (@daily_TOPP_files) {
-    my @lines = split /\n/, read_file($file);
+    my $path = "$base/$file";
+    my @lines = split /\n/, read_file($path);
     (my $mechanism = $file) =~ s/^(.*?)_TOPP_values\.txt/$1/;
     foreach my $line (@lines) {
         next if ($line =~ /^Working|^CH4/);
@@ -51,14 +52,14 @@ foreach my $mechanism (sort keys %TOPP) {
 }
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
-$R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRIv2" = "#ef6638", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `,
+$R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#b569b3", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `,
         q` data$VOC = factor(data$VOC, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane", "Ethene", "Propene", "Butene", "2-Methylpropene", "Isoprene", "Benzene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Ethylbenzene")) `,
         q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = TOPP, colour = Mechanism, group = Mechanism)) `,
-        q` plot = plot + geom_point() `,
         q` plot = plot + geom_line() `,
+        q` plot = plot + geom_point() `,
         q` plot = plot + facet_wrap( ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + xlab("Time (days)") `,

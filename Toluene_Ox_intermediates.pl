@@ -20,6 +20,15 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
+#MCM emissions used for TOPP calculation of de-lumped VOC
+my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
+my $emission_reaction = $kpp->producing_from("TOLUENE", "UNITY");
+next if (@$emission_reaction == 0);
+my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+my $emission_rate = $mecca->rate($reaction_number);
+$emission_rate = $emission_rate(1:$NTIME-2);
+my $mcm_emission = $emission_rate->sum * $dt;
+
 my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
 my (%families, %weights, %plot_data, %legend);
 foreach my $mechanism (@mechanisms) {
@@ -222,19 +231,22 @@ sub get_data {
         }
     }
 
-    my $parent;
-    if ($Ox =~ /RA/) {
-        $parent = "TOL";
-    } elsif ($Ox =~ /CB/) {
-        $parent = "TOL_TOLUENE";
+    my $emission_rate;
+    if ($Ox =~ /RA|MOZ/) {
+        $emission_rate = $mcm_emission;
     } else {
-        $parent = "TOLUENE";
+        my $parent;
+        if ($Ox =~ /CB/) {
+            $parent = "TOL_TOLUENE";
+        } else {
+            $parent = "TOLUENE";
+        }
+        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+        $emission_rate = $mecca->rate($reaction_number); 
+        $emission_rate = $emission_rate(1:$NTIME-2);
+        $emission_rate = $emission_rate->sum * $dt; 
     }
-    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number); 
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $emission_rate = $emission_rate->sum * $dt; 
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_reaction_rates{$_} /= $emission_rate foreach (sort keys %production_reaction_rates);

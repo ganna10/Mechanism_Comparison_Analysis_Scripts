@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
-# Plot Ox production of carbon numbers of total Ox production for pentane and toluene for all mechanisms.
-# Version 0: Jane Coates 28/12/2014
+# Plot Ox production rates of the degradation products for pentane
+# Version 0: Jane Coates 5/1/2015
 
 use strict;
 use diagnostics;
@@ -11,119 +11,78 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
-my $N_PER_DAY = 43200 / $dt;
-my $N_DAYS = int $NTIME / $N_PER_DAY;
+my $time = $mecca->time;
+$time -= $time->at(0);
+$time /= 86400;
+$time = $time(1:$NTIME-2);
 
-#MCM emissions used for TOPP calculation of de-lumped VOC
-my %mcm_emissions;
-my @VOCs = qw( NC5H12 TOLUENE );
-my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
-foreach my $VOC (@VOCs) {
-    my $emission_reaction = $kpp->producing_from($VOC, "UNITY");
-    next if (@$emission_reaction == 0);
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number);
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $mcm_emissions{$VOC} = $emission_rate->sum * $dt;
-}
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+my (%families, %weights, %n_carbon, %data);
 
-my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @mechanisms = qw( CB05 );
-my (%n_carbon, %families, %weights, %data); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
-    my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
-    my $kpp = KPP->new($eqnfile);
-    my $ro2file = "$base/${mechanism}_tagged/RO2_species.txt";
-    my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
+    my $mecca = MECCA->new($boxmodel);
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
+    my $kpp = KPP->new($eqn_file);
+    my $ro2_file = "$base/${mechanism}_tagged/RO2_species.txt";
+    my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2_file);
     my $carbon_file = "$base/${mechanism}_tagged/carbons.txt";
     $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
     $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
-    my @parents = qw( Pentane Toluene );
-    foreach my $NMVOC (@parents) {
-        my $parent = get_mechanism_species($NMVOC, $mechanism);
-        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
-    }
+    my $parent = get_mechanism_species("Pentane", $mechanism);
+    ($data{$mechanism}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(tidyr) `,
         q` library(Cairo) `,
-        q` library(scales) `,
-        q` library(grid) `,
+        q` library(tidyr) `,
 );
 
-$R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
+$R->set('time', [ map { $_ } $time->dog ]);
 $R->run(q` data = data.frame() `);
-
-foreach my $run (sort keys %data) {
-    foreach my $VOC (sort keys %{$data{$run}}) {
-        $R->run(q` pre.sort = data.frame(Time) `);
-        foreach my $ref (@{$data{$run}{$VOC}}) {
-            foreach my $carbons (sort keys %$ref) {
-                $R->set('carbons', $carbons);
-                $R->set('rate', [map { $_ } $ref->{$carbons}->dog]);
-                $R->run(q` pre.sort[carbons] = rate `);
-            }
+foreach my $mechanism (keys %data) {
+    $R->run(q` pre = data.frame(Time = time) `);
+    foreach my $ref (@{$data{$mechanism}}) {
+        foreach my $C (sort keys %$ref) {
+            $R->set('c', $C);
+            $R->set('rate', [ map { $_ } $ref->{$C}->dog ]);
+            $R->run(q` pre[c] = rate `);
         }
-        $R->set('mechanism', $run);
-        $R->set('Parent', $VOC); 
-        $R->run(q` if("C2.4" %in% colnames(pre.sort)) { pre.sort$C2 = pre.sort$C2 + pre.sort$C2.4 ; pre.sort$C2.4 = NULL }`,
-                q` if("C2.9" %in% colnames(pre.sort)) { pre.sort$C3 = pre.sort$C3 + pre.sort$C2.9 ; pre.sort$C2.9 = NULL }`,
-                q` if("C3.5" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C3.5 ; pre.sort$C3.5 = NULL }`,
-                q` if("C3.6" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C3.6 ; pre.sort$C3.6 = NULL }`,
-                q` if("C3.9" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C3.9 ; pre.sort$C3.9 = NULL }`,
-                q` if("C4.2" %in% colnames(pre.sort)) { pre.sort$C4 = pre.sort$C4 + pre.sort$C4.2 ; pre.sort$C4.2 = NULL }`,
-                q` if("C4.5" %in% colnames(pre.sort)) { pre.sort$C5 = pre.sort$C5 + pre.sort$C4.5 ; pre.sort$C4.5 = NULL }`,
-                q` if("C4.8" %in% colnames(pre.sort)) { pre.sort$C5 = pre.sort$C4.8 ; pre.sort$C4.8 = NULL }`,
-                q` if("C5.6" %in% colnames(pre.sort)) { pre.sort$C6 = pre.sort$C5.6 ; pre.sort$C5.6 = NULL }`,
-                q` if("C6.6" %in% colnames(pre.sort)) { pre.sort$C7 = pre.sort$C6.6 ; pre.sort$C6.6 = NULL }`,
-                q` if("C7.1" %in% colnames(pre.sort)) { pre.sort$C7 = pre.sort$C7 + pre.sort$C7.1 ; pre.sort$C7.1 = NULL }`,
-                q` if("C7.75" %in% colnames(pre.sort)) { pre.sort$C8 = pre.sort$C7.75 ; pre.sort$C7.75 = NULL }`,
-                q` pre.sort$Mechanism = rep(mechanism, length(time)) `,
-                q` pre.sort$VOC = rep(Parent, length(time)) `,
-                q` pre.sort = gather(pre.sort, C.number, Rate, -Time, -Mechanism, -VOC) `,
-                q` data = rbind(data, pre.sort) `,
-        );
-#my $p = $R->run(q` print(pre.sort) `);
-#print $p, "\n";
     }
+    $R->set('mechanism', $mechanism);
+    $R->run(q` if("C2.4" %in% colnames(pre)) { pre$C2 = pre$C2 + pre$C2.4 ; pre$C2.4 = NULL }`,
+            q` if("C2.9" %in% colnames(pre)) { pre$C3 = pre$C3 + pre$C2.9 ; pre$C2.9 = NULL }`,
+            q` if("C3.5" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.5 ; pre$C3.5 = NULL }`,
+            q` if("C3.6" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.6 ; pre$C3.6 = NULL }`,
+            q` if("C3.9" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C3.9 ; pre$C3.9 = NULL }`,
+            q` if("C4.2" %in% colnames(pre)) { pre$C4 = pre$C4 + pre$C4.2 ; pre$C4.2 = NULL }`,
+            q` if("C4.5" %in% colnames(pre)) { pre$C5 = pre$C5 + pre$C4.5 ; pre$C4.5 = NULL }`,
+            q` if("C4.8" %in% colnames(pre)) { pre$C5 = pre$C4.8 ; pre$C4.8 = NULL }`,
+            q` if("C5.6" %in% colnames(pre)) { pre$C6 = pre$C5.6 ; pre$C5.6 = NULL }`,
+            q` if("C6.6" %in% colnames(pre)) { pre$C7 = pre$C6.6 ; pre$C6.6 = NULL }`,
+            q` if("C7.1" %in% colnames(pre)) { pre$C7 = pre$C7 + pre$C7.1 ; pre$C7.1 = NULL }`,
+            q` if("C7.75" %in% colnames(pre)) { pre$C8 = pre$C7.75 ; pre$C7.75 = NULL }`,
+            q` pre$Mechanism = rep(mechanism, length(time)) `,
+            q` pre = gather(pre, C, Rate, -Time, -Mechanism) `,
+            q` data = rbind(data, pre) `,
+    );
 }
+#my $p = $R->run(q` print(data) `);
+#print $p, "\n";
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
-$R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
-$R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 
-$R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
-        q` plot = plot + geom_bar(stat = "identity", width = 0.5) `,
-        q` plot = plot + coord_flip() `,
-        q` plot = plot + facet_grid( Time ~ VOC ) `,
-        q` plot = plot + theme_bw() `,
-        q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
-        q` plot = plot + scale_y_continuous(expand = c(0, 5e-6)) `,
-        q` plot = plot + ylab("Day-time Ox Production Budgets attributed to Carbon Number of Degradation Products\n(molecules(Ox) s-1 / molecules (VOC))") `,
-        q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
-        q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
-        q` plot = plot + theme(axis.title.y = element_blank()) `,
-        q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
-        q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
-        q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title.x = element_text(face = "bold")) `,
-        #q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
-        q` plot = plot + theme(panel.grid = element_blank()) `,
-        q` plot = plot + theme(legend.position = "bottom") `,
-        q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.title = element_blank()) `,
-        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
-        q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = C)) `,
+        q` plot = plot + geom_area(position = "stack") `,
+        q` plot = plot + facet_wrap( ~ Mechanism) `,
+        q` plot = plot + scale_fill_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "Ox_production_by_C_number.pdf", width = 8.7, height = 10) `,
+$R->run(q` CairoPDF(file = "C_number_Ox_production_rates.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -234,63 +193,42 @@ sub get_data {
         } 
     }
     remove_common_processes(\%production_rates, \%consumption_rates);
-    my $emission_rate;
-    if ($VOC =~ /TOL/ and $mechanism =~ /RA|MOZ/) {
-        $emission_rate = $mcm_emissions{"TOLUENE"};
-    } elsif ($VOC =~ /HC5|BIGALK/) {
-        $emission_rate = $mcm_emissions{"NC5H12"};
-    } else {
-        my $parent;
-        if ($VOC =~ /TOL/) {
-            if ($mechanism =~ /CB/) {
-                $parent = "TOL_TOLUENE";
-            } else {
-                $parent = "TOLUENE";
-            }
-        } else { #pentane
-            if ($mechanism =~ /CB/) {
-                $parent = "PAR_NC5H12";
-            } else {
-                $parent = "NC5H12";
-            }
+    my $parent;
+    if ($VOC =~ /TOL/) {
+        if ($mechanism =~ /RA/) {
+            $parent = "TOL";
+        } elsif ($mechanism =~ /CB/) {
+            $parent = "TOL_TOLUENE";
+        } else {
+            $parent = "TOLUENE";
         }
-        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        $emission_rate = $mecca->rate($reaction_number); 
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $dt; 
-        $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
+    } else { #pentane
+        if ($mechanism =~ /RA/) {
+            $parent = "HC5";
+        } elsif ($mechanism =~ /CB/) {
+            $parent = "PAR_NC5H12";
+        } elsif ($mechanism =~ /MOZ/) {
+            $parent = "BIGALK";
+        } else {
+            $parent = "TOLUENE";
+        }
     }
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
+    $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
-    foreach my $C (keys %production_rates) {
-        if ($VOC =~ /TOL/) {
-            if ($mechanism eq "RACM2") {
-                $production_rates{$C} *= 0.868;
-            } elsif ($mechanism =~ /RADM2|RACM\b/) {
-                $production_rates{$C} *= 0.667;
-            } elsif ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.478;
-            }
-        } else {
-            if ($mechanism =~ /RA/) {
-                $production_rates{$C} *= 0.264;
-            } elsif ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.146;
-            }
-        }
-        my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
-        my $integrate = $reshape->sumover;
-        $integrate = $integrate(0:13:2);
-        $production_rates{$C} = $integrate;
-    }
     my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;
     push @final_sorted_data, { $_ => $production_rates{$_} } foreach (@prod_sorted_data); 
     return \@final_sorted_data;
 }
+
 
 sub get_carbons {
     my ($run, $file) = @_;

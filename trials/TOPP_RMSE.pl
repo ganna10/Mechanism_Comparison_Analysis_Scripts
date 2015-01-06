@@ -7,13 +7,14 @@ use diagnostics;
 use Statistics::R;
 
 my %TOPP;
-my $base = "/local/home/coates/Documents/Analysis/2014_Mechanism_comparison_paper";
+my $base = "/local/home/coates/Documents/Analysis/2014_Mechanism_comparison_paper/TOPP_plots";
 opendir DIR, $base or die "Can't open $base : $!";
 my @daily_TOPP_files = grep { $_ =~ /TOPP_values/ } readdir DIR;
 closedir DIR;
 
 foreach my $file (@daily_TOPP_files) {
-    my @lines = split /\n/, read_file($file);
+    my $path = "$base/$file";
+    my @lines = split /\n/, read_file($path);
     (my $mechanism = $file) =~ s/^(.*?)_TOPP_values\.txt/$1/;
     foreach my $line (@lines) {
         next if ($line =~ /^Working|^CH4/);

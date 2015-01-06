@@ -11,27 +11,26 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0); 
 my $n_per_day = 43200 / $dt;
 my $n_days = int ($NTIME / $n_per_day);
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2",  "(h) CBM-IV", "(i) CB05" );
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
 my @base_name = qw( HCHO HCHO HCHO CH2O HCHO HCHO HCHO HCHO FORM );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile); 
-    my $spcfile = "$base/$run/gas.spc";
+    my $spcfile = "$base/${mechanism}_tagged/gas.spc";
     my $all_tagged_species = get_tagged_species($base_name[$index], $spcfile); 
-    $families{$mechanisms[$index]} = [ @$all_tagged_species ];
-    ($plot_data{$mechanisms[$index]}) = get_data($kpp, $mecca, $mechanisms[$index]);
+    $families{$mechanism} = [ @$all_tagged_species ];
+    ($plot_data{$mechanism}) = get_data($kpp, $mecca, $mechanism);
     $index++;
 }
 
@@ -128,6 +127,13 @@ sub get_data {
     }
 
     foreach my $reaction (keys %production_reaction_rates) {
+        if ($species =~ /CB/) {
+            $production_reaction_rates{$reaction} /= 5;
+        } elsif ($species =~ /MOZ/) {
+            $production_reaction_rates{$reaction} *= 0.146;
+        } elsif ($species =~ /RA/) {
+            $production_reaction_rates{$reaction} *= 0.264;
+        }
         my $reshape = $production_reaction_rates{$reaction}->copy->reshape($n_per_day, $n_days);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);

@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Show reactions contributing to pentane C1 OxPE in each mechanism
 # Version 0: Jane Coates 17/11/2014
+# Version 1: Jane Coates 5/1/2015
 
 use strict;
 use diagnostics;
@@ -11,37 +12,32 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $DT = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $DT ;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @runs = qw( MOZART_tagging );
-#my @mechanisms = qw( MOZART );
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
-my $index = 0;
+my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" );
 my (%families, %weights, %plot_data);
 
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $spc_file = "$base/$run/gas.spc";
-    my $eqn_file = "$base/$run/gas.eqn";
+    my $spc_file = "$base/${mechanism}_tagged/gas.spc";
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    my $carbons_file = "$base/$run/carbons.txt";
-    my $carbons = get_carbons($run, $carbons_file);
-    my $RO2_file = "$base/$run/RO2_species.txt";
+    my $carbons_file = "$base/${mechanism}_tagged/carbons.txt";
+    my $carbons = get_carbons($mechanism, $carbons_file);
+    my $RO2_file = "$base/${mechanism}_tagged/RO2_species.txt";
     my @no2_reservoirs = get_no2_reservoirs($kpp, $RO2_file);
-    $families{"Ox_$mechanisms[$index]"} = [ qw( O3 O O1D NO2 HO2NO2 NO3 N2O5 ), @no2_reservoirs ];
-    $weights{"Ox_$mechanisms[$index]"} = { NO3 => 2, N2O5 => 3 };
+    $families{"Ox_$mechanism"} = [ qw( O3 O O1D NO2 HO2NO2 NO3 N2O5 ), @no2_reservoirs ];
+    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3 };
     my @VOCs = qw( Pentane );
     foreach my $VOC (@VOCs) {
-        my $mech_species = get_model_name($VOC, $run);
-        ($plot_data{$mechanisms[$index]}{$VOC}) = get_data($mecca, $kpp, $mechanisms[$index], $mech_species, $carbons, $spc_file);
+        my $mech_species = get_model_name($VOC, $mechanism);
+        ($plot_data{$mechanism}{$VOC}) = get_data($mecca, $kpp, $mechanism, $mech_species, $carbons, $spc_file);
     }
-    $index++;
 }
 
 my $R = Statistics::R->new();
@@ -250,6 +246,23 @@ sub get_data {
     }
 
     foreach my $reaction (keys %production) {
+        if ($VOC =~ /TOL/) {
+            if ($mechanism =~ /MOZ/) {
+                $production{$reaction} *= 0.232;
+            } elsif ($mechanism =~ /RADM2|RACM\b/) {
+                $production{$reaction} *= 0.667;
+            } elsif ($mechanism =~ /RACM2/) {
+                $production{$reaction} *= 0.868;
+            }
+        } else { #pentane
+            if ($mechanism =~ /CB/) {
+                $production{$reaction} /= 5;
+            } elsif ($mechanism =~ /MOZ/) {
+                $production{$reaction} *= 0.146;
+            } elsif ($mechanism =~ /RA/) {
+                $production{$reaction} *= 0.264;
+            }
+        }
         my $reshape = $production{$reaction}->copy->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
@@ -318,7 +331,7 @@ sub get_carbons {
         $carbons = mcm_n_carbon($file);
     } elsif ($run =~ /CRI|RADM|RACM|CB/) {
         $carbons = carbons_others($file);
-    } elsif ($run eq "MOZART_tagging") {
+    } elsif ($run =~ /MOZART/) {
         $carbons = mozart_n_carbon($file);
     } else {
         print "$run doesn't match\n";
