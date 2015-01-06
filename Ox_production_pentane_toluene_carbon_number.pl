@@ -100,13 +100,13 @@ $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", 
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 
 $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
-        q` plot = plot + geom_bar(stat = "identity", width = 0.5) `,
+        q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + coord_flip() `,
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 5e-6)) `,
-        q` plot = plot + ylab("Day-time Ox Production Budgets attributed to Carbon Number of Degradation Products\n(molecules(Ox) s-1 / molecules (VOC))") `,
+        q` plot = plot + ylab("Day-time Ox Production attributed to Carbon Number of Degradation Products\n(molecules(Ox) / molecules (VOC))") `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
         q` plot = plot + theme(axis.title.y = element_blank()) `,
@@ -284,7 +284,7 @@ sub get_data {
         my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
-        $production_rates{$C} = $integrate;
+        $production_rates{$C} = $integrate * $dt;
     }
     my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;

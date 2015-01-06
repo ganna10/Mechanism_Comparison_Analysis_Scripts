@@ -65,11 +65,12 @@ foreach my $run (sort keys %data) {
 #print "$p\n";
 
 $R->run(q` my.colours = c(  "CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#b569b3", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
+$R->run(q` plot.data$Mechanism = factor(plot.data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
 
 $R->run(q` scientific_10 <- function(x) { parse(text=gsub("e", " %*% 10^", scientific_format()(x))) } `), #scientific label format for y-axis
 $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mechanism, group = Mechanism)) `,
-        q` plot = plot + geom_point() `,
         q` plot = plot + geom_line() `,
+        q` plot = plot + geom_point() `,
         q` plot = plot + facet_wrap( ~ VOC) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + ylab(expression(bold(paste("Net Carbon Loss Rate (molecules ", cm^-3, s^-1, ")")))) `,
