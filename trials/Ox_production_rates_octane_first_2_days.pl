@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Plot Ox production rates of the degradation products for pentane
+# Plot Ox production rates of the degradation products for octane
 # Version 0: Jane Coates 5/1/2015
 
 use strict;
@@ -14,13 +14,11 @@ my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
-my $time = $mecca->time;
-$time -= $time->at(0);
-$time /= 86400;
-$time = $time(1:$NTIME-2);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @mechanisms = qw( RADM2 CB05 );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+#my @mechanisms = qw( RADM2 CB05 );
 my (%families, %weights, %n_carbon, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -34,7 +32,7 @@ foreach my $mechanism (@mechanisms) {
     $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
     $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3};
     $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
-    my $parent = get_mechanism_species("Pentane", $mechanism);
+    my $parent = get_mechanism_species("Octane", $mechanism);
     ($data{$mechanism}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
 }
 
@@ -46,7 +44,7 @@ $R->run(q` library(ggplot2) `,
         q` library(scales) `,
 );
 
-$R->set('time', [ map { $_ } $time->dog ]);
+$R->set('time', [ ("Day 1", "Day 2") ]);
 $R->run(q` data = data.frame() `);
 foreach my $mechanism (keys %data) {
     $R->run(q` pre = data.frame(Time = time) `);
@@ -70,26 +68,26 @@ foreach my $mechanism (keys %data) {
             q` if("C6.6" %in% colnames(pre)) { pre$C7 = pre$C6.6 ; pre$C6.6 = NULL }`,
             q` if("C7.1" %in% colnames(pre)) { pre$C7 = pre$C7 + pre$C7.1 ; pre$C7.1 = NULL }`,
             q` if("C7.75" %in% colnames(pre)) { pre$C8 = pre$C7.75 ; pre$C7.75 = NULL }`,
+            q` if("C7.9" %in% colnames(pre)) { pre$C8 = pre$C7.9 ; pre$C7.9 = NULL }`,
             q` pre$Mechanism = rep(mechanism, length(time)) `,
             q` pre = gather(pre, C, Rate, -Time, -Mechanism) `,
-            q` pre = filter(pre, Time <= 1.5) `,
-            #q` pre = pre %>% group_by(Time) %>% do(data.frame(C = .$C, Mechanism = .$Mechanism, Percent = .$Rate / sum(.$Rate))) `,
             q` data = rbind(data, pre) `,
     );
 }
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `);
+$R->run(q` data$C = factor(data$C, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 #my $p = $R->run(q` print(as.data.frame(data)) `);
 #print $p, "\n";
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = C)) `,
-        q` plot = plot + geom_area(position = "stack") `,
+        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
         #q` plot = plot + scale_y_continuous(labels = percent_format()) `,
         q` plot = plot + scale_fill_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "pentane_day2_Ox_production_rates_C_number.pdf") `,
+$R->run(q` CairoPDF(file = "octane_day2_Ox_production_rates_C_number.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -203,12 +201,13 @@ sub get_data {
 
     foreach my $C (keys %production_rates) {
         if ($mechanism =~ /MOZ/) {
-            $production_rates{$C} *= 0.146;
-        } elsif ($mechanism =~ /RA/) {
-            $production_rates{$C} *= 0.264;
+            $production_rates{$C} *= 0.01;
         } elsif ($mechanism =~ /CB/) {
-            $production_rates{$C} /= 5;
+            $production_rates{$C} /= 8;
         }
+        my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $production_rates{$C} = $integrate(0:3:2);
     }
     my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;
@@ -365,13 +364,13 @@ sub get_mechanism_species {
     my ($NMVOC, $run) = @_;
 
     my $mechanism_species;
-    if ($NMVOC eq "Pentane") {
+    if ($NMVOC eq "Octane") {
         if ($run =~ /MCM|CRI|CB/) {
-            $mechanism_species = "NC5H12";
+            $mechanism_species = "NC8H18";
         } elsif ($run =~ /MOZART/) {
             $mechanism_species = "BIGALK";
         } elsif ($run =~ /RADM|RACM/) {
-            $mechanism_species = "HC5";
+            $mechanism_species = "HC8";
         } else {
             print "No mechanism species found for $NMVOC\n";
         }

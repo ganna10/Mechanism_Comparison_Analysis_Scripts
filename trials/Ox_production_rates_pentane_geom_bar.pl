@@ -14,13 +14,11 @@ my $base = "/local/home/coates/MECCA";
 my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
-my $time = $mecca->time;
-$time -= $time->at(0);
-$time /= 86400;
-$time = $time(1:$NTIME-2);
+my $N_PER_DAY = 43200 / $dt;
+my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @mechanisms = qw( RADM2 CB05 );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+#my @mechanisms = qw( RADM2 CB05 );
 my (%families, %weights, %n_carbon, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -46,7 +44,7 @@ $R->run(q` library(ggplot2) `,
         q` library(scales) `,
 );
 
-$R->set('time', [ map { $_ } $time->dog ]);
+$R->set('time', [ ("Day 1", "Day 2") ]);
 $R->run(q` data = data.frame() `);
 foreach my $mechanism (keys %data) {
     $R->run(q` pre = data.frame(Time = time) `);
@@ -72,8 +70,6 @@ foreach my $mechanism (keys %data) {
             q` if("C7.75" %in% colnames(pre)) { pre$C8 = pre$C7.75 ; pre$C7.75 = NULL }`,
             q` pre$Mechanism = rep(mechanism, length(time)) `,
             q` pre = gather(pre, C, Rate, -Time, -Mechanism) `,
-            q` pre = filter(pre, Time <= 1.5) `,
-            #q` pre = pre %>% group_by(Time) %>% do(data.frame(C = .$C, Mechanism = .$Mechanism, Percent = .$Rate / sum(.$Rate))) `,
             q` data = rbind(data, pre) `,
     );
 }
@@ -83,7 +79,7 @@ $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.
 #print $p, "\n";
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = C)) `,
-        q` plot = plot + geom_area(position = "stack") `,
+        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
         #q` plot = plot + scale_y_continuous(labels = percent_format()) `,
         q` plot = plot + scale_fill_manual(values = my.colours) `,
@@ -209,6 +205,9 @@ sub get_data {
         } elsif ($mechanism =~ /CB/) {
             $production_rates{$C} /= 5;
         }
+        my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        $production_rates{$C} = $integrate(0:3:2);
     }
     my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;
