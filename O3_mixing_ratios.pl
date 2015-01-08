@@ -74,7 +74,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanis
         q` plot = plot + theme(panel.grid = element_blank()) `,
 );
 
-$R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.5, heigh = 5.7) `,
+$R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.0, height = 5.6) `,
         q` print(plot) `,
         q` dev.off() `,
 );
