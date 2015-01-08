@@ -11,11 +11,20 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $DT = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $DT ;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
+
+#MCM emissions used for TOPP calculation of de-lumped VOC
+my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
+my $emission_reaction = $kpp->producing_from("NC5H12", "UNITY");
+next if (@$emission_reaction == 0);
+my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+my $emission_rate = $mecca->rate($reaction_number);
+$emission_rate = $emission_rate(1:$NTIME-2);
+my $mcm_emission_rate = $emission_rate->sum * $DT;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2" );
 #my @mechanisms = qw( RACM2 );
@@ -53,27 +62,58 @@ foreach my $mechanism (sort keys %plot_data) {
         $R->run(q` pre = data.frame(Time) `);
         foreach my $ref (@{$plot_data{$mechanism}{$VOC}}) {
             foreach my $reaction (sort keys %$ref) {
-                $R->set('reaction', $reaction);
-                $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
-                $R->run(q` pre[reaction] = rate `);
+                my $name;
+                if ($reaction =~ /NO \+ PEBO2|ALKO2|HC5P|RN16O2/) {
+                    $name = "NO + Pentyl Peroxy Radical";
+                } else {
+                    $name = $reaction;
+                }
+                $R->set('reaction', $name);
+                $R->set('production', [ map { $_ } $ref->{$reaction}->dog ]);
+                $R->run(q` pre[reaction] = production `);
             }
         }
         $R->set('mechanism', $mechanism);
         $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
-                q` pre = gather(pre, Reaction, Rate, -Time, -Mechanism) `,
+                q` pre = gather(pre, Reaction, Production, -Time, -Mechanism) `,
                 q` data = rbind(data, pre) `,
         );
     }
 }
 #my $p = $R->run(q` print(pre) `);
 #print "$p\n";
+$R->run(q` my.colours = c(  "Production Others" = "#696537",
+                            "NO + Pentyl Peroxy Radical" = "#6c254f",
+                            "NO + RN15AO2" = "#f9c500", 
+                            "KETP + NO" = "#0e5c28", 
+                            "NO + PECO2" = "#e7e85e", 
+                            "PECO" = "#b569b3", 
+                            "HO2C5O" = "#ef6638", 
+                            "HO2C5O2 + NO" = "#4c9383" ) `, 
+);
+$R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4")) `);
+$R->run(q` data$Reaction = factor(data$Reaction, levels = c("NO + Pentyl Peroxy Radical", "HO2C5O", "HO2C5O2 + NO", "NO + PECO2", "PECO", "NO + RN15AO2", "KETP + NO", "Production Others")) `);
 
-$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Production, fill = Reaction)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
+        q` plot = plot + ylab("Reaction Rates (molecules cm-3 s-1)") `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0)) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(levels(data$Reaction))) `,
+        q` plot = plot + theme(legend.position = c(0.7, 0.17)) `,
 );
 
-$R->run(q` CairoPDF(file = "C5_pentane_reaction_rates.pdf") `,
+$R->run(q` CairoPDF(file = "C5_pentane_reaction_rates.pdf", width = 6, height = 9) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -93,6 +133,9 @@ sub get_data {
     my @loop = ("Ox_${mechanism}_$VOC", "HO2x_$VOC");
     my (%production, %consumption);
     my @c5s = qw( 5 4.5 4.8 5.6 );
+    my $nr = 0;
+    my $yield = 0;
+    print "$mechanism\n";
 
     foreach my $species (@loop) {
         my ($producers, $producer_yields, $consumers, $consumer_yields);
@@ -112,10 +155,10 @@ sub get_data {
         print "No producers found for $species\n" if (@$producers == 0);
         print "No consumers found for $species\n" if (@$consumers == 0);
 
-        foreach (0..$#$producers) {
-            my $reaction = $producers->[$_];
+        foreach my $i (0..$#$producers) {
+            my $reaction = $producers->[$i];
             my $reaction_number = $kpp->reaction_number($reaction);
-            my $rate = $mecca->rate($reaction_number) * $producer_yields->[$_];
+            my $rate = $mecca->rate($reaction_number) * $producer_yields->[$i];
             next if ($rate->sum == 0);
             my ($r_number, $parent) = split /_/, $reaction;
             next unless (defined $parent and $parent eq $VOC);
@@ -126,6 +169,8 @@ sub get_data {
                     my ($lookup, $tag) = split /_/, $_;
                     if (defined $carbons{$lookup}) {
                         next unless ($carbons{$lookup} ~~ @c5s);
+                        $nr++;
+                        $yield += $producer_yields->[$i];
                         my ($reaction_string) = $kpp->reaction_string($reaction);
                         $reaction_string =~ s/_(.*?)\b//g;
                         my ($label, $rest) = split / = /, $reaction_string;
@@ -143,11 +188,11 @@ sub get_data {
             my $op_producer_yields = $kpp->effect_on($operator, $op_producers); 
             die "No producers found for $operator\n" if (@$op_producers == 0);
 
-            for (0..$#$op_producers) { #get rates for all producing reactions
-                my $reaction = $op_producers->[$_];
+            for my $i (0..$#$op_producers) { #get rates for all producing reactions
+                my $reaction = $op_producers->[$i];
                 my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
                 my $reaction_number = $kpp->reaction_number($reaction);
-                my $rate = $op_producer_yields->[$_] * $mecca->rate($reaction_number); 
+                my $rate = $op_producer_yields->[$i] * $mecca->rate($reaction_number); 
                 next if ($rate->sum == 0); # do not include reactions that do not occur 
                 my ($reactants) = $kpp->reactants($reaction);
                 foreach (@$reactants) {
@@ -155,6 +200,8 @@ sub get_data {
                         my ($lookup, $rest) = split '_', $_;
                         if (defined $carbons{$lookup}) {
                             next unless ($carbons{$lookup} ~~ @c5s);
+                            $nr++;
+                            $yield += $op_producer_yields->[$i];
                             my ($reaction_string) = $kpp->reaction_string($reaction);
                             $reaction_string =~ s/_(.*?)\b//g;
                             my ($label, $rest) = split / = /, $reaction_string;
@@ -167,6 +214,9 @@ sub get_data {
             } 
         } 
 
+        print "$species\n";
+        print "number of C5s => $nr\n" ;
+        print "total Ox yield of C5s => $yield\n" ;
         foreach (0..$#$consumers) {
             my $reaction = $consumers->[$_];
             my $reaction_number = $kpp->reaction_number($reaction);
@@ -194,7 +244,7 @@ sub get_data {
     }
     remove_common_processes(\%production, \%consumption);
 
-    my $others = 5e6;
+    my $others = 6e6;
     foreach my $reaction (keys %production) {
         if ($production{$reaction}->sum < $others) {
             $production{"Production Others"} += $production{$reaction};
@@ -202,23 +252,32 @@ sub get_data {
         }
     }
 
+    my $emission_rate;
+    if ($mechanism =~ /RA|MOZ/) {
+        $emission_rate = $mcm_emission_rate;
+    } else {
+        my $parent;
+        if ($mechanism =~ /CB/) {
+            $parent = "PAR_NC5H12";
+        } else {
+            $parent = "NC5H12";
+        }
+        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+        $emission_rate = $mecca->rate($reaction_number); 
+        $emission_rate = $emission_rate(1:$NTIME-2);
+        $emission_rate = $emission_rate->sum * $DT; 
+        $emission_rate /= 5 if ($mechanism =~ /CB/);
+    }
+    
+    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
+    $production{$_} /= $emission_rate foreach (sort keys %production); 
+
     foreach my $reaction (keys %production) {
-        if ($VOC =~ /TOL/) {
-            if ($mechanism =~ /MOZ/) {
-                $production{$reaction} *= 0.232;
-            } elsif ($mechanism =~ /RADM2|RACM\b/) {
-                $production{$reaction} *= 0.667;
-            } elsif ($mechanism =~ /RACM2/) {
-                $production{$reaction} *= 0.868;
-            }
-        } else { #pentane
-            if ($mechanism =~ /CB/) {
-                $production{$reaction} /= 5;
-            } elsif ($mechanism =~ /MOZ/) {
-                $production{$reaction} *= 0.146;
-            } elsif ($mechanism =~ /RA/) {
-                $production{$reaction} *= 0.264;
-            }
+        if ($mechanism =~ /MOZ/) {
+            $production{$reaction} *= 0.146;
+        } elsif ($mechanism =~ /RA/) {
+            $production{$reaction} *= 0.264;
         }
         my $reshape = $production{$reaction}->copy->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;

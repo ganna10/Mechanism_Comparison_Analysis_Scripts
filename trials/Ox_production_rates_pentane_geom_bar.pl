@@ -40,8 +40,6 @@ my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(Cairo) `,
         q` library(tidyr) `,
-        q` library(dplyr) `,
-        q` library(scales) `,
 );
 
 $R->set('time', [ ("Day 1", "Day 2") ]);
@@ -78,14 +76,27 @@ $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.
 #my $p = $R->run(q` print(as.data.frame(data)) `);
 #print $p, "\n";
 
-$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = C)) `,
-        q` plot = plot + geom_bar(stat = "identity", position = "dodge") `,
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = C, width = 0.7)) `,
+        q` plot = plot + geom_bar(stat = "identity", position = position_dodge(width = 0.6)) `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
-        #q` plot = plot + scale_y_continuous(labels = percent_format()) `,
         q` plot = plot + scale_fill_manual(values = my.colours) `,
+        q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0.35)) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(legend.position = "bottom") `,
+        q` plot = plot + theme(axis.text.x = element_text(face = "bold")) `,
 );
 
-$R->run(q` CairoPDF(file = "pentane_day2_Ox_production_rates_C_number.pdf") `,
+$R->run(q` CairoPDF(file = "pentane_day2_Ox_production_rates_C_number.pdf", width = 7, height = 10) `,
         q` print(plot) `,
         q` dev.off() `,
 );
