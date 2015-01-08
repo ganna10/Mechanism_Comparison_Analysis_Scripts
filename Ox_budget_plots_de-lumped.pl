@@ -71,8 +71,8 @@ my $p2 = $R->run(q` print(sum(mcm$Rate)) `);
 print "MCMv3.2 => $p2\n";
 
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
-        q` VOC.levels = c(  "Methane ", "CO ", "Ethane ", "Propane ", "2-Methylpropane ", "Butane ", "Pentane ", "2-Methylbutane ", "Hexane ", "Ethene ", "Propene ", "2-Methylpropene ", "Isoprene ", "Toluene ", "m-Xylene ", "o-Xylene ", "p-Xylene ", "Production Others" ) `, 
-        q` my.colours = c(  "Production Others" = "#696537", 
+        q` VOC.levels = c(  "Methane ", "CO ", "Ethane ", "Propane ", "2-Methylpropane ", "Butane ", "Pentane ", "2-Methylbutane ", "Hexane ", "Ethene ", "Propene ", "2-Methylpropene ", "Isoprene ", "Toluene ", "m-Xylene ", "o-Xylene ", "p-Xylene ", "Others" ) `, 
+        q` my.colours = c(  "Others" = "#696537", 
                             "Methane " = "#6c254f",
                             "CO " = "#f9c500", 
                             "Ethane " = "#0352cb", 
@@ -96,12 +96,14 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC )) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
         q` plot = plot + theme_bw() `,
-        q` plot = plot + ylab(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")")))) `,
+        q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0)) `,
         q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
-        q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.4)) `,
+        q` plot = plot + theme(axis.text.x = element_text(face = "bold", angle = 45, vjust = 0.4)) `,
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
@@ -110,7 +112,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = VOC )) `,
         q` plot = plot + scale_fill_manual(values = my.colours, limits = VOC.levels, guide = guide_legend(nrow = 3)) `,
 );
 
-$R->run(q` CairoPDF( file = "Ox_production_budgets_by_VOC_de-allocated.pdf" , width = 9, height = 12.7) `,
+$R->run(q` CairoPDF( file = "Ox_production_budgets_by_VOC_de-allocated.pdf" , width = 8, height = 11) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -264,7 +266,7 @@ sub get_data {
     my $others = 8.8e7;
     foreach my $process (keys %{$production{"Ox_$mechanism"}}) {
         if ($production{"Ox_$mechanism"}{$process}->sum < $others) {
-            $production{"Ox_$mechanism"}{"Production Others"} += $production{"Ox_$mechanism"}{$process};
+            $production{"Ox_$mechanism"}{"Others"} += $production{"Ox_$mechanism"}{$process};
             delete $production{"Ox_$mechanism"}{$process};
         }
     }
@@ -273,10 +275,10 @@ sub get_data {
     my @sorted_prod = sort { &$sort_function($production{"Ox_$mechanism"}{$b}) <=> &$sort_function($production{"Ox_$mechanism"}{$a}) } keys %{$production{"Ox_$mechanism"}};
     my @sorted_data;
     foreach (@sorted_prod) {
-        next if ($_ eq 'Production Others' or $_ eq 'Methane ' or $_ eq 'CO ');
+        next if ($_ eq 'Others' or $_ eq 'Methane ' or $_ eq 'CO ');
         push @sorted_data, { $_ => $production{"Ox_$mechanism"}{$_} }
     }
-    push @sorted_data, { 'Production Others' => $production{"Ox_$mechanism"}{'Production Others'} } if (defined $production{"Ox_$mechanism"}{'Production Others'});
+    push @sorted_data, { 'Others' => $production{"Ox_$mechanism"}{'Others'} } if (defined $production{"Ox_$mechanism"}{'Others'});
     unshift @sorted_data, { 'CO ' => $production{"Ox_$mechanism"}{'CO '} } if (defined $production{"Ox_$mechanism"}{'CO '});
     unshift @sorted_data, { 'Methane ' => $production{"Ox_$mechanism"}{'Methane '} } if (defined $production{"Ox_$mechanism"}{'Methane '});
     return \@sorted_data;
@@ -383,8 +385,8 @@ sub get_chemical_name {
         $chemical_species = "p-Xylene ";
     } elsif ($VOC eq 'EBENZ') {
         $chemical_species = "Ethylbenzene ";
-    } elsif ($VOC eq 'Production Others') {
-        $chemical_species = 'Production Others';
+    } elsif ($VOC eq 'Others') {
+        $chemical_species = 'Others';
     } else {
         print "No chemical species found for $VOC\n";
     }
