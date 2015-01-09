@@ -124,7 +124,7 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 15.2, height = 21.5) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 15.6, height = 22.0) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
                                                     plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
