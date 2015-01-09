@@ -76,26 +76,25 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "C2H5O2 + NO" = "#c9a415", "ETHP + NO" = "#c9a415",
                             "HOCH2CH2O2 + NO" = "#e7e85e",
                             "NO + RN10O2" = "#1c3e3d",
-                            "BIGALD + hv" = "#8c1531", 
+                            "BIGALD + hv" = "#000000", 
                             "CRO + NO2" = "#898989") `,
 );
 
 $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = time, y = rate, fill = reaction)) ;
                                                             plot = plot + geom_bar(data = subset(data, rate > 0), stat = "identity") ;
                                                             plot = plot + geom_bar(data = subset(data, rate < 0), stat = "identity") ;
-                                                            plot = plot + ylab(expression(bold(paste("Molecules (intermediate) ", s^-1, "/ Molecules (VOC) x ", 10^4)))) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
-                                                            plot = plot + theme(axis.title.x = element_blank()) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5), expand = c(0, -0.5)) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 20, angle = 45, hjust = 0.8, vjust = 0.7)) ;
+                                                            plot = plot + theme(axis.title = element_blank()) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-35, 35), breaks = seq(-35, 35, 5), expand = c(0, 0.0)) ;
+                                                            plot = plot + scale_x_discrete(expand = c(0, 0)) ;
+                                                            plot = plot + theme(axis.text.x = element_text(face = "bold", size = 20, angle = 45, hjust = 0.8, vjust = 0.7)) ;
                                                             plot = plot + theme(axis.text.y = element_text(size = 18)) ;
                                                             plot = plot + theme(plot.title = element_text(size = 22, face = "bold")) ;
                                                             plot = plot + theme(panel.grid = element_blank()) ;
                                                             plot = plot + theme(legend.title = element_blank()) ;
                                                             plot = plot + theme(legend.key = element_blank()) ;
                                                             plot = plot + theme(panel.border = element_rect(colour = "black")) ;
-                                                            plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
                                                             plot = plot + theme(legend.justification = c(1.0, 0.0)) ;
                                                             plot = plot + theme(legend.position = c(1.0, 0.0)) ;
                                                             plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
@@ -125,19 +124,19 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 16.9, height = 26.0) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()), 
-                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
-                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
-                                                    plots[[9]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank()),
-                                                    plots[[7]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
-                                                    plots[[8]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 15.2, height = 21.5) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
+                                                    plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
+                                                    plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
+                                                    plots[[9]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()),
+                                                    plots[[7]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
+                                                    plots[[8]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     plots[[6]] + theme(axis.title.y = element_blank()),
-                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
-                                                    plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank(), axis.title.y = element_blank()),
+                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
+                                                    plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Molecules (intermediate) ", s^-1, "/ Molecules (VOC) x ", 10^4))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
+                                       left = textGrob("\nMolecules (intermediate) s-1 / Molecules (VOC) x 10^4", gp = gpar(fontface = "bold", fontsize = 26), rot = 90, vjust = 0.5) ) `, 
         q` print(multiplot) `,
         q` dev.off() `,
 );
