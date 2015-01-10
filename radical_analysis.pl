@@ -82,15 +82,14 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
 $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) ;
                                                             plot = plot + geom_bar(stat = "identity") ;
                                                             plot = plot + ggtitle(mechanism) ;
-                                                            plot = plot + scale_x_discrete(expand = c(0, 0.5)) ;
-                                                            plot = plot + scale_y_continuous(limits = c(0, 7e8), breaks = seq(0, 7e8, 1e8)) ;
+                                                            plot = plot + scale_x_discrete(expand = c(0, 0)) ;
+                                                            plot = plot + scale_y_continuous(limits = c(0, 7e8), breaks = seq(0, 7e8, 1e8), expand = c(0, 0)) ;
                                                             plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + theme(plot.title = element_text(size = 22, face = "bold")) ;
                                                             plot = plot + theme(axis.title = element_blank()) ;
-                                                            plot = plot + theme(axis.text.x = element_text(size = 20, angle = 45, vjust = 0.7, hjust = 0.8)) ;
+                                                            plot = plot + theme(axis.text.x = element_text(face = "bold", size = 20, angle = 45, vjust = 0.7, hjust = 0.8)) ;
                                                             plot = plot + theme(axis.text.y = element_text(size = 18)) ;
-                                                            plot = plot + theme(plot.margin = unit(c(0, 0, 0, -0.04), "cm")) ;
                                                             plot = plot + theme(legend.position = c(1, 1)) ;
                                                             plot = plot + theme(legend.justification = c(1, 1)) ;
                                                             plot = plot + theme(panel.grid = element_blank()) ;
@@ -123,7 +122,7 @@ foreach my $mechanism (sort keys %data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 16.9, height = 26.0) `,
+$R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 14.1, height = 20.0) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
                                                     plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
@@ -135,7 +134,7 @@ $R->run(q` CairoPDF(file = "radical_NOx_production_budgets.pdf", width = 16.9, h
                                                     plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob(expression(bold(paste("Reaction Rate (molecules ", cm^-3, s^-1, ")"))), gp = gpar(fontsize = 26), rot = 90, vjust = 0.5) ) `, 
+                                       left = textGrob("Reaction Rate (molecules cm-3 s-1)", gp = gpar(fontface = "bold", fontsize = 26), rot = 90, vjust = 0.5) ) `, 
         q` print(multiplot) `, 
         q` dev.off() `,
 );

@@ -136,7 +136,7 @@ $R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 15.6, height = 22
                                                     plots[[1]] + theme(axis.title.y = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     nrow = 3), 
                                        nrow = 1, ncol = 1,
-                                       left = textGrob("\nMolecules (intermediate) s-1 / Molecules (VOC) x 10^4", gp = gpar(fontface = "bold", fontsize = 26), rot = 90, vjust = 0.5) ) `, 
+                                       left = textGrob("\nMolecules (intermediate) s-1 / Molecules (VOC)", gp = gpar(fontface = "bold", fontsize = 26), rot = 90, vjust = 0.5) ) `, 
         q` print(multiplot) `,
         q` dev.off() `,
 );
