@@ -3,6 +3,7 @@
 # Version 0: Jane Coates 5/12/2014
 # Version 1: Jane Coates 17/12/2014 de-lumping VOC into MCM species for RADM2, RACM, RACM2 and MOZART-4
 # Version 2: Jane Coates 6/1/2015 re-doing TOPP calculation for lumped species
+# Version 3: Jane Coates 13/1/2015 treating de-lumped VOC TOPP values by scaling by carbon number (similar to CB)
 
 use strict;
 use diagnostics;
@@ -19,22 +20,8 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#MCM emissions used for TOPP calculation of de-lumped VOC
-my %mcm_emissions;
-my @VOCs = qw( C3H8 NC4H10 IC4H10 NC5H12 IC5H12 NC6H14 NC7H16 NC8H18 C3H6 BUT1ENE MEPROPENE BENZENE TOLUENE EBENZ MXYL OXYL PXYL );
-my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
-foreach my $VOC (@VOCs) {
-    my $emission_reaction = $kpp->producing_from($VOC, "UNITY");
-    next if (@$emission_reaction == 0);
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number);
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $mcm_emissions{$VOC} = $emission_rate->sum * $dt;
-}
-
 my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my (%families, %weights, %data);
-
+my (%families, %weights, %data); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
@@ -290,102 +277,124 @@ sub get_TOPPs {
         next if ( $VOC =~ /=/);
         my $rate = $production{"Ox_$mechanism"}{$VOC}->copy->reshape($N_PER_DAY, $N_DAYS);
         my $production = $rate->sumover * $dt;
-        $TOPP{$VOC} = $production(0:13:2);
+        $TOPP{$VOC} = $production(0:13:2) / $emissions{$VOC};
     }
 
     foreach my $VOC (sort keys %TOPP) {
-        if ($mechanism eq "RADM2" or $mechanism eq "RACM") { 
+        if ($mechanism eq "RADM2") { 
             if ($VOC eq "HC3") {
-                $TOPP{"C3H8"} = $TOPP{$VOC} * 0.628 / $mcm_emissions{"C3H8"};
-                $TOPP{"NC4H10"} = $TOPP{$VOC} * 0.243 / $mcm_emissions{"NC4H10"};
-                $TOPP{"IC4H10"} = $TOPP{$VOC} * 0.129 / $mcm_emissions{"IC4H10"};
+                $TOPP{"C3H8"} = $TOPP{$VOC} * 3 / 2.9;
+                $TOPP{"NC4H10"} = $TOPP{$VOC} * 4 / 2.9;
+                $TOPP{"IC4H10"} = $TOPP{$VOC} * 4 / 2.9;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "HC5") {
-                $TOPP{"NC5H12"} = $TOPP{$VOC} * 0.264 / $mcm_emissions{"NC5H12"};
-                $TOPP{"IC5H12"} = $TOPP{$VOC} * 0.615 / $mcm_emissions{"IC5H12"};
-                $TOPP{"NC6H14"} = $TOPP{$VOC} * 0.086 / $mcm_emissions{"NC6H14"};
-                $TOPP{"NC7H16"} = $TOPP{$VOC} * 0.035 / $mcm_emissions{"NC7H16"};
+                $TOPP{"NC5H12"} = $TOPP{$VOC} * 5 / 4.8;
+                $TOPP{"IC5H12"} = $TOPP{$VOC} * 5 / 4.8;
+                $TOPP{"NC6H14"} = $TOPP{$VOC} * 6 / 4.8;
+                $TOPP{"NC7H16"} = $TOPP{$VOC} * 7 / 4.8;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "HC8") {
-                $TOPP{"NC8H18"} = $TOPP{$VOC} / $mcm_emissions{"NC8H18"};
+                $TOPP{"NC8H18"} = $TOPP{$VOC} * 8 / 7.9;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "OLT") { 
-                $TOPP{"C3H6"} = $TOPP{$VOC} * 0.883 / $mcm_emissions{"C3H6"};
-                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 0.117 / $mcm_emissions{"BUT1ENE"};
+                $TOPP{"C3H6"} = $TOPP{$VOC} * 3 / 3.8;
+                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 4 / 3.8;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "OLI") {
-                $TOPP{"MEPROPENE"} = $TOPP{$VOC} / $mcm_emissions{"MEPROPENE"};
+                $TOPP{"MEPROPENE"} = $TOPP{$VOC} * 4 / 4.8;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "TOL") {
-                $TOPP{"BENZENE"} = $TOPP{$VOC} * 0.232 / $mcm_emissions{"BENZENE"};
-                $TOPP{"TOLUENE"} = $TOPP{$VOC} * 0.667 / $mcm_emissions{"TOLUENE"};
-                $TOPP{"EBENZ"} = $TOPP{$VOC} * 0.101 / $mcm_emissions{"EBENZ"};
+                $TOPP{"BENZENE"} = $TOPP{$VOC} * 6 / 7.1;
+                $TOPP{"TOLUENE"} = $TOPP{$VOC} * 7 / 7.1;
+                $TOPP{"EBENZ"} = $TOPP{$VOC} * 8 / 7.1;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "XYL") {
-                $TOPP{"MXYL"} = $TOPP{$VOC} * 0.5 / $mcm_emissions{"MXYL"};
-                $TOPP{"OXYL"} = $TOPP{$VOC} * 0.244 / $mcm_emissions{"OXYL"};
-                $TOPP{"PXYL"} = $TOPP{$VOC} * 0.256 / $mcm_emissions{"PXYL"};
+                $TOPP{"MXYL"} = $TOPP{$VOC} * 8 / 8.9;
+                $TOPP{"OXYL"} = $TOPP{$VOC} * 8 / 8.9;
+                $TOPP{"PXYL"} = $TOPP{$VOC} * 8 / 8.9;
                 delete $TOPP{$VOC};
-            } else {
-                $TOPP{$VOC} /= $emissions{$VOC};
+            }
+        } elsif ($mechanism eq "RACM") {
+            if ($VOC eq "HC3") {
+                $TOPP{"C3H8"} = $TOPP{$VOC} * 3 / 2.9;
+                $TOPP{"NC4H10"} = $TOPP{$VOC} * 4 / 2.9;
+                $TOPP{"IC4H10"} = $TOPP{$VOC} * 4 / 2.9;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "HC5") {
+                $TOPP{"NC5H12"} = $TOPP{$VOC} * 5 / 4.8;
+                $TOPP{"IC5H12"} = $TOPP{$VOC} * 5 / 4.8;
+                $TOPP{"NC6H14"} = $TOPP{$VOC} * 6 / 4.8;
+                $TOPP{"NC7H16"} = $TOPP{$VOC} * 7 / 4.8;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "HC8") {
+                $TOPP{"NC8H18"} = $TOPP{$VOC} * 8 / 7.9;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "OLT") { 
+                $TOPP{"C3H6"} = $TOPP{$VOC} * 3 / 3.8;
+                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 4 / 3.8;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "OLI") {
+                $TOPP{"MEPROPENE"} = $TOPP{$VOC} * 4 / 5;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "TOL") {
+                $TOPP{"BENZENE"} = $TOPP{$VOC} * 6 / 7.1;
+                $TOPP{"TOLUENE"} = $TOPP{$VOC} * 7 / 7.1;
+                $TOPP{"EBENZ"} = $TOPP{$VOC} * 8 / 7.1;
+                delete $TOPP{$VOC};
+            } elsif ($VOC eq "XYL") {
+                $TOPP{"MXYL"} = $TOPP{$VOC} * 8 / 8.9;
+                $TOPP{"OXYL"} = $TOPP{$VOC} * 8 / 8.9;
+                $TOPP{"PXYL"} = $TOPP{$VOC} * 8 / 8.9;
+                delete $TOPP{$VOC};
             }
         } elsif ($mechanism eq "RACM2") {
             if ($VOC eq "HC3") {
-                $TOPP{"C3H8"} = $TOPP{$VOC} * 0.628 / $mcm_emissions{"C3H8"};
-                $TOPP{"NC4H10"} = $TOPP{$VOC} * 0.243 / $mcm_emissions{"NC4H10"};
-                $TOPP{"IC4H10"} = $TOPP{$VOC} * 0.129 / $mcm_emissions{"IC4H10"};
+                $TOPP{"C3H8"} = $TOPP{$VOC} * 3 / 3.6;
+                $TOPP{"NC4H10"} = $TOPP{$VOC} * 4 / 3.6;
+                $TOPP{"IC4H10"} = $TOPP{$VOC} * 4 / 3.6;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "HC5") {
-                $TOPP{"NC5H12"} = $TOPP{$VOC} * 0.264 / $mcm_emissions{"NC5H12"};
-                $TOPP{"IC5H12"} = $TOPP{$VOC} * 0.615 / $mcm_emissions{"IC5H12"};
-                $TOPP{"NC6H14"} = $TOPP{$VOC} * 0.086 / $mcm_emissions{"NC6H14"};
-                $TOPP{"NC7H16"} = $TOPP{$VOC} * 0.035 / $mcm_emissions{"NC7H16"};
+                $TOPP{"NC5H12"} = $TOPP{$VOC} * 5 / 5.6;
+                $TOPP{"IC5H12"} = $TOPP{$VOC} * 5 / 5.6;
+                $TOPP{"NC6H14"} = $TOPP{$VOC} * 6 / 5.6;
+                $TOPP{"NC7H16"} = $TOPP{$VOC} * 7 / 5.6;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "HC8") {
-                $TOPP{"NC8H18"} = $TOPP{$VOC} / $mcm_emissions{"NC8H18"};
+                $TOPP{"NC8H18"} = $TOPP{$VOC} * 8 / 7.9;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "OLT") { 
-                $TOPP{"C3H6"} = $TOPP{$VOC} * 0.883 / $mcm_emissions{"C3H6"};
-                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 0.117 / $mcm_emissions{"BUT1ENE"};
+                $TOPP{"C3H6"} = $TOPP{$VOC} * 3 / 3.8;
+                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 4 / 3.8;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "OLI") {
-                $TOPP{"MEPROPENE"} = $TOPP{$VOC} / $mcm_emissions{"MEPROPENE"};
+                $TOPP{"MEPROPENE"} = $TOPP{$VOC} * 4 / 5;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "TOL") {
-                $TOPP{"TOLUENE"} = $TOPP{$VOC} * 0.868 / $mcm_emissions{"TOLUENE"};
-                $TOPP{"EBENZ"} = $TOPP{$VOC} * 0.132 / $mcm_emissions{"EBENZ"};
+                $TOPP{"TOLUENE"} = $TOPP{$VOC} * 7 / 7.1;
+                $TOPP{"EBENZ"} = $TOPP{$VOC} * 8 / 7.1;
                 delete $TOPP{$VOC};
-            } else {
-                $TOPP{$VOC} /= $emissions{$VOC};
             }
         } elsif ($mechanism eq "MOZART-4") {
             if ($VOC eq "BIGALK") {
-                $TOPP{"NC4H10"} = $TOPP{$VOC} * 0.285 / $mcm_emissions{"NC4H10"};
-                $TOPP{"IC4H10"} = $TOPP{$VOC} * 0.151 / $mcm_emissions{"IC4H10"};
-                $TOPP{"NC5H12"} = $TOPP{$VOC} * 0.146 / $mcm_emissions{"NC5H12"};
-                $TOPP{"IC5H12"} = $TOPP{$VOC} * 0.340 / $mcm_emissions{"IC5H12"};
-                $TOPP{"NC6H14"} = $TOPP{$VOC} * 0.048 / $mcm_emissions{"NC6H14"};
-                $TOPP{"NC7H16"} = $TOPP{$VOC} * 0.020 / $mcm_emissions{"NC7H16"};
-                $TOPP{"NC8H18"} = $TOPP{$VOC} * 0.010 / $mcm_emissions{"NC8H18"};
+                $TOPP{"NC4H10"} = $TOPP{$VOC} * 4 / 5;
+                $TOPP{"IC4H10"} = $TOPP{$VOC} * 4 / 5;
+                $TOPP{"NC5H12"} = $TOPP{$VOC} * 5 / 5;
+                $TOPP{"IC5H12"} = $TOPP{$VOC} * 5 / 5;
+                $TOPP{"NC6H14"} = $TOPP{$VOC} * 6 / 5;
+                $TOPP{"NC7H16"} = $TOPP{$VOC} * 7 / 5;
+                $TOPP{"NC8H18"} = $TOPP{$VOC} * 8 / 5;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "BIGENE") {
-                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 0.333 / $mcm_emissions{"BUT1ENE"};
-                $TOPP{"MEPROPENE"} = $TOPP{$VOC} * 0.667 / $mcm_emissions{"MEPROPENE"};
+                $TOPP{"BUT1ENE"} = $TOPP{$VOC} * 4 / 4;
+                $TOPP{"MEPROPENE"} = $TOPP{$VOC} * 4 / 4;
                 delete $TOPP{$VOC};
             } elsif ($VOC eq "TOLUENE") {
-                $TOPP{"BENZENE"} = $TOPP{$VOC} * 0.166 / $mcm_emissions{"BENZENE"};
-                $TOPP{"TOL"} = $TOPP{$VOC} * 0.478 / $mcm_emissions{"TOLUENE"};
-                $TOPP{"EBENZ"} = $TOPP{$VOC} * 0.073 / $mcm_emissions{"EBENZ"};
-                $TOPP{"MXYL"} = $TOPP{$VOC} * 0.142 / $mcm_emissions{"MXYL"};
-                $TOPP{"OXYL"} = $TOPP{$VOC} * 0.069 / $mcm_emissions{"OXYL"};
-                $TOPP{"PXYL"} = $TOPP{$VOC} * 0.073 / $mcm_emissions{"PXYL"};
-                $TOPP{"TOLUENE"} = $TOPP{"TOL"};
-                delete $TOPP{"TOL"};
-            } else {
-                $TOPP{$VOC} /= $emissions{$VOC};
+                $TOPP{"BENZENE"} = $TOPP{$VOC} * 6 / 7;
+                $TOPP{"EBENZ"} = $TOPP{$VOC} * 8 / 7;
+                $TOPP{"MXYL"} = $TOPP{$VOC} * 8 / 7;
+                $TOPP{"OXYL"} = $TOPP{$VOC} * 8 / 7;
+                $TOPP{"PXYL"} = $TOPP{$VOC} * 8 / 7;
             }
-        } else {
-            $TOPP{$VOC} /= $emissions{$VOC};
         }
     }
     return \%TOPP;

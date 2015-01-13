@@ -4,6 +4,7 @@
 # Version 1: Jane Coates 21/10/2014 including assignment of XO2 producing reactions to budget
 # Version 2: Jane Coates 10/11/2014 including HO2x production and updates to script
 # Version 3: Jane Coates 26/12/2014 including all mechanisms in analysis and re-factoring code
+# Version 4: Jane Coates 13/1/2015 correcting emissions of lumped species
 
 use strict;
 use diagnostics;
@@ -19,15 +20,6 @@ my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
-
-#MCM emissions used for TOPP calculation of de-lumped VOC
-my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
-my $emission_reaction = $kpp->producing_from("TOLUENE", "UNITY");
-next if (@$emission_reaction == 0);
-my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-my $emission_rate = $mecca->rate($reaction_number);
-$emission_rate = $emission_rate(1:$NTIME-2);
-my $mcm_emission = $emission_rate->sum * $dt;
 
 my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
 my (%families, %weights, %plot_data, %legend);
@@ -86,7 +78,7 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + theme_bw() ;
                                                             plot = plot + ggtitle(mechanism) ;
                                                             plot = plot + theme(axis.title = element_blank()) ;
-                                                            plot = plot + scale_y_continuous(limits = c(-35, 35), breaks = seq(-35, 35, 5), expand = c(0, 0.0)) ;
+                                                            plot = plot + scale_y_continuous(limits = c(-25, 35), breaks = seq(-25, 35, 5), expand = c(0, 0.0)) ;
                                                             plot = plot + scale_x_discrete(expand = c(0, 0)) ;
                                                             plot = plot + theme(axis.text.x = element_text(face = "bold", size = 20, angle = 45, hjust = 0.8, vjust = 0.7)) ;
                                                             plot = plot + theme(axis.text.y = element_text(size = 18)) ;
@@ -124,7 +116,7 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 15.6, height = 22.0) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 18.4, height = 26.0) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
                                                     plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
@@ -230,34 +222,27 @@ sub get_data {
         }
     }
 
-    my $emission_rate;
-    if ($Ox =~ /RA|MOZ/) {
-        $emission_rate = $mcm_emission;
+    my $parent;
+    if ($Ox =~ /CB/) {
+        $parent = "TOL_TOLUENE";
+    } elsif ($Ox =~ /RA/) {
+        $parent = "TOL";
     } else {
-        my $parent;
-        if ($Ox =~ /CB/) {
-            $parent = "TOL_TOLUENE";
-        } else {
-            $parent = "TOLUENE";
-        }
-        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        $emission_rate = $mecca->rate($reaction_number); 
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $dt; 
+        $parent = "TOLUENE";
     }
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_reaction_rates{$_} /= $emission_rate foreach (sort keys %production_reaction_rates);
     $consumption_reaction_rates{$_} /= $emission_rate foreach (sort keys %consumption_reaction_rates);
-
+    
     foreach my $reaction (keys %production_reaction_rates) {
-        if ($Ox =~ /MOZ/) {
-            $production_reaction_rates{$reaction} *= 0.478;
-        } elsif ($Ox =~ /RADM2/ or $Ox =~ /RACM\b/) {
-            $production_reaction_rates{$reaction} *= 0.667;
-        } elsif ($Ox =~ /RACM2/) {
-            $production_reaction_rates{$reaction} *= 0.868;
+        if ($Ox =~ /TOL/) {
+            $production_reaction_rates{$reaction} = $production_reaction_rates{$reaction} * 7 / 7.1;
         }
         my $reshape = $production_reaction_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;

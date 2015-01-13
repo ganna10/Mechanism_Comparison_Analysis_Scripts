@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Plot Ox production of carbon numbers of total Ox production for pentane and toluene for all mechanisms.
 # Version 0: Jane Coates 28/12/2014
+# Version 1: Jane Coates 13/1/2015 Correcting calculations for lumped species
 
 use strict;
 use diagnostics;
@@ -16,19 +17,6 @@ my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
-
-#MCM emissions used for TOPP calculation of de-lumped VOC
-my %mcm_emissions;
-my @VOCs = qw( NC5H12 TOLUENE );
-my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
-foreach my $VOC (@VOCs) {
-    my $emission_reaction = $kpp->producing_from($VOC, "UNITY");
-    next if (@$emission_reaction == 0);
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number);
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $mcm_emissions{$VOC} = $emission_rate->sum * $dt;
-}
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
 #my @mechanisms = qw( CB05 );
@@ -234,51 +222,46 @@ sub get_data {
         } 
     }
     remove_common_processes(\%production_rates, \%consumption_rates);
-    my $emission_rate;
-    if ($VOC =~ /TOL/ and $mechanism =~ /RA|MOZ/) {
-        $emission_rate = $mcm_emissions{"TOLUENE"};
-    } elsif ($VOC =~ /HC5|BIGALK/) {
-        $emission_rate = $mcm_emissions{"NC5H12"};
-    } else {
-        my $parent;
-        if ($VOC =~ /TOL/) {
-            if ($mechanism =~ /CB/) {
-                $parent = "TOL_TOLUENE";
-            } else {
-                $parent = "TOLUENE";
-            }
-        } else { #pentane
-            if ($mechanism =~ /CB/) {
-                $parent = "PAR_NC5H12";
-            } else {
-                $parent = "NC5H12";
-            }
+    my $parent;
+    if ($VOC =~ /TOL/) {
+        if ($mechanism =~ /CB/) {
+            $parent = "TOL_TOLUENE";
+        } elsif ($mechanism =~ /RA/) {
+            $parent = "TOL";
+        } else {
+            $parent = "TOLUENE";
         }
-        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        $emission_rate = $mecca->rate($reaction_number); 
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $dt; 
-        $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
+    } else { #pentane
+        if ($mechanism =~ /CB/) {
+            $parent = "PAR_NC5H12";
+        } elsif ($mechanism =~ /RA/) {
+            $parent = "HC5";
+        } elsif ($mechanism eq "MOZART-4") {
+            $parent = "BIGALK";
+        } else {
+            $parent = "NC5H12";
+        }
     }
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
+    $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
     foreach my $C (keys %production_rates) {
         if ($VOC =~ /TOL/) {
-            if ($mechanism eq "RACM2") {
-                $production_rates{$C} *= 0.868;
-            } elsif ($mechanism =~ /RADM2|RACM\b/) {
-                $production_rates{$C} *= 0.667;
-            } elsif ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.478;
+            if ($mechanism =~ /RA/) {
+                $production_rates{$C} = $production_rates{$C} * 7 / 7.1;
             }
         } else {
-            if ($mechanism =~ /RA/) {
-                $production_rates{$C} *= 0.264;
-            } elsif ($mechanism =~ /MOZ/) {
-                $production_rates{$C} *= 0.146;
+            if ($mechanism eq "RACM2") {
+                $production_rates{$C} = $production_rates{$C} * 5 / 5.6;
+            } elsif ($mechanism =~ /RA/) {
+                $production_rates{$C} = $production_rates{$C} * 5 / 4.8;
             }
         }
         my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
