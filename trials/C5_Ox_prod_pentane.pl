@@ -17,15 +17,6 @@ my $DT = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $DT ;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#MCM emissions used for TOPP calculation of de-lumped VOC
-my $kpp = KPP->new("$base/MCMv3.2_tagged/gas.eqn");
-my $emission_reaction = $kpp->producing_from("NC5H12", "UNITY");
-next if (@$emission_reaction == 0);
-my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-my $emission_rate = $mecca->rate($reaction_number);
-$emission_rate = $emission_rate(1:$NTIME-2);
-my $mcm_emission_rate = $emission_rate->sum * $DT;
-
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2" );
 #my @mechanisms = qw( RACM2 );
 my (%families, %weights, %plot_data);
@@ -252,23 +243,22 @@ sub get_data {
         }
     }
 
-    my $emission_rate;
-    if ($mechanism =~ /RA|MOZ/) {
-        $emission_rate = $mcm_emission_rate;
+    my $parent;
+    if ($mechanism =~ /CB/) {
+        $parent = "PAR_NC5H12";
+        } elsif ($mechanism =~ /RA/) {
+            $parent = "HC5";
+        } elsif ($mechanism eq "MOZART-4") {
+            $parent = "BIGALK";
     } else {
-        my $parent;
-        if ($mechanism =~ /CB/) {
-            $parent = "PAR_NC5H12";
-        } else {
-            $parent = "NC5H12";
-        }
-        my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        $emission_rate = $mecca->rate($reaction_number); 
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $DT; 
-        $emission_rate /= 5 if ($mechanism =~ /CB/);
+        $parent = "NC5H12";
     }
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $DT; 
+    $emission_rate /= 5 if ($mechanism =~ /CB/);
     
     #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production{$_} /= $emission_rate foreach (sort keys %production); 

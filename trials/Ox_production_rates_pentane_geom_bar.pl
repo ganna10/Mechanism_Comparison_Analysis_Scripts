@@ -210,9 +210,9 @@ sub get_data {
 
     foreach my $C (keys %production_rates) {
         if ($mechanism =~ /MOZ/) {
-            $production_rates{$C} *= 0.146;
+            $production_rates{$C} *= 0.156;
         } elsif ($mechanism =~ /RA/) {
-            $production_rates{$C} *= 0.264;
+            $production_rates{$C} *= 0.256;
         } elsif ($mechanism =~ /CB/) {
             $production_rates{$C} /= 5;
         }
