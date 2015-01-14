@@ -1,6 +1,7 @@
 #!/usr/bin/env perl 
 # Ox production budget plots from all tagged mechanisms, lumped species are de-lumped into constituent VOC
 # Version 0: Jane Coates 17/12/2014
+# Version 1: Jane Coates 14/1/2015 updated Ox allocation of lumped species
 
 use strict;
 use diagnostics;
@@ -196,60 +197,62 @@ sub get_data {
 
     #de-lump lumped VOC to MCM species
     if ($mechanism eq "RADM2" or $mechanism eq "RACM") {
-        $production{"Ox_$mechanism"}{"C3H8"} = 0.628 * $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"NC4H10"} = 0.243 * $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"IC4H10"} = 0.129 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"C3H8"} = 0.559 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.228 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.153 * $production{"Ox_$mechanism"}{"HC3"};
         delete $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"NC5H12"} = 0.264 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"IC5H12"} = 0.615 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"NC6H14"} = 0.086 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"NC7H16"} = 0.035 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.256 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.596 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.100 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.048 * $production{"Ox_$mechanism"}{"HC5"};
         delete $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"C3H6"} = 0.875 * $production{"Ox_$mechanism"}{"OLT"}; 
-        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.125 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"C3H6"} = 0.850 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.150 * $production{"Ox_$mechanism"}{"OLT"}; 
         delete $production{"Ox_$mechanism"}{"OLT"};
-        $production{"Ox_$mechanism"}{"BENZENE"} = 0.232 * $production{"Ox_$mechanism"}{"TOL"};
-        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.667 * $production{"Ox_$mechanism"}{"TOL"};
-        $production{"Ox_$mechanism"}{"EBENZ"} = 0.101 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"BENZENE"} = 0.203 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.679 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.118 * $production{"Ox_$mechanism"}{"TOL"};
         delete $production{"Ox_$mechanism"}{"TOL"};
         $production{"Ox_$mechanism"}{"MXYL"} = 0.5 * $production{"Ox_$mechanism"}{"XYL"};
         $production{"Ox_$mechanism"}{"OXYL"} = 0.244 * $production{"Ox_$mechanism"}{"XYL"};
         $production{"Ox_$mechanism"}{"PXYL"} = 0.256 * $production{"Ox_$mechanism"}{"XYL"};
         delete $production{"Ox_$mechanism"}{"XYL"};
     } elsif ($mechanism eq "RACM2") {
-        $production{"Ox_$mechanism"}{"C3H8"} = 0.628 * $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"NC4H10"} = 0.243 * $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"IC4H10"} = 0.129 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"C3H8"} = 0.559 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.288 * $production{"Ox_$mechanism"}{"HC3"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.153 * $production{"Ox_$mechanism"}{"HC3"};
         delete $production{"Ox_$mechanism"}{"HC3"};
-        $production{"Ox_$mechanism"}{"NC5H12"} = 0.264 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"IC5H12"} = 0.615 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"NC6H14"} = 0.086 * $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"NC7H16"} = 0.035 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.256 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.560 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.100 * $production{"Ox_$mechanism"}{"HC5"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.048 * $production{"Ox_$mechanism"}{"HC5"};
         delete $production{"Ox_$mechanism"}{"HC5"};
-        $production{"Ox_$mechanism"}{"C3H6"} = 0.875 * $production{"Ox_$mechanism"}{"OLT"}; 
-        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.125 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"C3H6"} = 0.850 * $production{"Ox_$mechanism"}{"OLT"}; 
+        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.150 * $production{"Ox_$mechanism"}{"OLT"}; 
         delete $production{"Ox_$mechanism"}{"OLT"};
-        $production{"Ox_$mechanism"}{"BENZENE"} = 0.232 * $production{"Ox_$mechanism"}{"TOL"};
-        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.667 * $production{"Ox_$mechanism"}{"TOL"};
-        $production{"Ox_$mechanism"}{"EBENZ"} = 0.101 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"TOLUENE"} = 0.852 * $production{"Ox_$mechanism"}{"TOL"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.148 * $production{"Ox_$mechanism"}{"TOL"};
         delete $production{"Ox_$mechanism"}{"TOL"};
     } elsif ($mechanism =~ /MOZ/) {
-        $production{"Ox_$mechanism"}{"BENZENE"} = 0.166 * $production{"Ox_$mechanism"}{"TOLUENE"};
-        $production{"Ox_$mechanism"}{"TOLUENE_MOZART"} = 0.478 * $production{"Ox_$mechanism"}{"TOLUENE"};
-        $production{"Ox_$mechanism"}{"MXYL"} = 0.142 * $production{"Ox_$mechanism"}{"TOLUENE"};
-        $production{"Ox_$mechanism"}{"OXYL"} = 0.069 * $production{"Ox_$mechanism"}{"TOLUENE"};
-        $production{"Ox_$mechanism"}{"PXYL"} = 0.073 * $production{"Ox_$mechanism"}{"TOLUENE"};
-        $production{"Ox_$mechanism"}{"EBENZ"} = 0.073 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"BENZENE"} = 0.139 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"TOLUENE_MOZART"} = 0.465 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"MXYL"} = 0.158 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"OXYL"} = 0.077 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"PXYL"} = 0.081 * $production{"Ox_$mechanism"}{"TOLUENE"};
+        $production{"Ox_$mechanism"}{"EBENZ"} = 0.081 * $production{"Ox_$mechanism"}{"TOLUENE"};
         $production{"Ox_$mechanism"}{"TOLUENE"} = $production{"Ox_$mechanism"}{"TOLUENE_MOZART"};
         delete $production{"Ox_$mechanism"}{"TOLUENE_MOZART"}; 
-        $production{"Ox_$mechanism"}{"NC4H10"} = 0.285 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"IC4H10"} = 0.151 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"NC5H12"} = 0.146 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"IC5H12"} = 0.340 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"NC6H14"} = 0.048 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"NC7H16"} = 0.020 * $production{"Ox_$mechanism"}{"BIGALK"};
-        $production{"Ox_$mechanism"}{"NC8H18"} = 0.010 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC4H10"} = 0.244 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"IC4H10"} = 0.129 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC5H12"} = 0.156 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"IC5H12"} = 0.364 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC6H14"} = 0.061 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC7H16"} = 0.029 * $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"NC8H18"} = 0.017 * $production{"Ox_$mechanism"}{"BIGALK"};
         delete $production{"Ox_$mechanism"}{"BIGALK"};
+        $production{"Ox_$mechanism"}{"BUT1ENE"} = 0.333 * $production{"Ox_$mechanism"}{"BIGENE"};
+        $production{"Ox_$mechanism"}{"MEPROPENE"} = 0.667 * $production{"Ox_$mechanism"}{"BIGENE"};
+        delete $production{"Ox_$mechanism"}{"BIGENE"};
     }
 
     my $others = 8.8e7;
