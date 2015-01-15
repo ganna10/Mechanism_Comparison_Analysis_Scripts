@@ -97,7 +97,7 @@ $R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time
                                                 plot = plot + ggtitle(title) ;
                                                 plot = plot + theme(plot.title = element_text(face = "bold")) ;
                                                 plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") ;
-                                                plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) ;
+                                                plot = plot + theme(axis.text.x = element_text(face = "bold", angle = 45, hjust = 0.8, vjust = 0.7)) ;
                                                 plot = plot + theme(axis.title = element_text(face = "bold")) ;
                                                 plot = plot + theme(axis.title.x = element_blank()) ;
                                                 plot = plot + theme(panel.grid = element_blank()) ;
