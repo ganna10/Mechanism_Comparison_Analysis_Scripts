@@ -18,7 +18,7 @@ full$VOC = factor(full$VOC, levels = c("Ethane", "Propane", "Butane", "2-Methylp
 
 #plotting 
 library(ggplot2)
-library(plyr)
+library(dplyr)
 library(Cairo)
 
 my.colours = c( "Ethane" = "#696537", "Propane" = "#f9c600", "Butane" = "#76afca", "2-Methylpropane" = "#dc3522", "Pentane" = "#8c6238", "2-Methylbutane" = "#9bb08f", "Hexane" = "#8b1537", "Heptane" = "#ba8b01", "Octane" = "#0352cb" )
@@ -52,8 +52,9 @@ racm.sums = data.frame(TOPP = c(1.00219408422708, 1.82024583049204, 1.8202458304
 racm2.sums = data.frame(TOPP = c(0.909124590456485, 1.42925610696828, 1.42925610696828, 1.42925610696828, 1.1370189424072, 1.1370189424072, 1.1370189424072, 1.1370189424072, 1.05259203890672), C = c(2, 3, 4, 4, 5, 5, 6, 7, 8), Mechanism = rep("RACM2", 9), VOC = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane"))
 
 sum = rbind(cb05.sums, cbm4.sums, cri.sums, mcm1.sums, mcm2.sums, mozart.sums, radm2.sums, racm.sums, racm2.sums)
+sum = filter(sum, VOC == c("Hexane", "Heptane", "Octane"))
 sum$Mechanism = factor(sum$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")))
-sum$VOC = factor(sum$VOC, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane"))
+sum$VOC = factor(sum$VOC, levels = c("Hexane", "Heptane", "Octane"))
 
 plot = ggplot(sum, aes(x = Mechanism, y = TOPP, colour = VOC))
 plot = plot + geom_point()
@@ -61,6 +62,8 @@ plot = plot + coord_flip()
 plot = plot + ylab("TOPP (molecules(Ox)/molecules(VOC)) per Carbon Number")
 plot = plot + scale_colour_manual(values = my.colours)
 plot = plot + theme_bw()
+plot = plot + theme(legend.direction = "horizontal")
+plot = plot + theme(legend.position = c(0.27, 0.93))
 plot = plot + theme(axis.title = element_text(face = "bold"))
 plot = plot + theme(panel.border = element_rect(colour = "black"))
 plot = plot + theme(panel.grid = element_blank())
