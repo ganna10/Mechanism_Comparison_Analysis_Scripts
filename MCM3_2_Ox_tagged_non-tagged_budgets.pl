@@ -102,7 +102,7 @@ $R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time
                                                 plot = plot + theme(axis.title.x = element_blank()) ;
                                                 plot = plot + theme(panel.grid = element_blank()) ;
                                                 plot = plot + theme(legend.title = element_blank()) ;
-                                                plot = plot + theme(legend.position = c(1.031, 1.031), legend.justification = c(1.031, 1.031)) ;
+                                                plot = plot + theme(legend.position = c(1.031, 1.025), legend.justification = c(1.031, 1.025)) ;
                                                 plot = plot + scale_fill_manual(limits = rev(levels(data$Process)), labels = my.names, values = my.colours) ;
                                                 plot = plot + scale_y_continuous(limits=c(0, 1.5e9), breaks=seq(0, 1.5e9, 2e8), expand = c(0, 1e7));
                                                 plot = plot + theme(legend.key = element_blank()) ;
@@ -111,7 +111,7 @@ $R->run(q` plotting = function (data, title) {  plot = ggplot(data, aes(x = Time
                                                 return(plot) } `,
 );
 
-$R->set('Time', [("Day 1", "Night 1", "Day 2", "Night 2", "Day 3", "Night 3", "Day 4", "Night 4", "Day 5", "Night 5", "Day 6", "Night 6", "Day 7", "Night 7")]);
+$R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` plots = list() `);
 foreach my $run (sort keys %data) {
     $R->run(q` pre = data.frame(Time) `);
@@ -123,9 +123,9 @@ foreach my $run (sort keys %data) {
         }
     }
     if ($run =~ /no/) {
-        $R->set('run', "(b) Not Tagged");
+        $R->set('run', "(a) Not Tagged");
     } else {
-        $R->set('run', "(a) Tagged");
+        $R->set('run', "(b) Tagged");
     }
     $R->run(q` pre = gather(pre, Process, Rate, -Time) `,
             q` plot = plotting(pre, run) `,
@@ -134,9 +134,9 @@ foreach my $run (sort keys %data) {
 }
 #my $p = $R->run(q` print(plot) `);
 #print $p, "\n";
-$R->run(q` CairoPDF(file = "MCMv3_2_tagged_non_tagged_Ox_budget.pdf", width = 8.5, height = 5.8) `,
-        q` multiplot = grid.arrange(    arrangeGrob(plots[[2]] ,
-                                                    plots[[1]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
+$R->run(q` CairoPDF(file = "MCMv3_2_tagged_non_tagged_Ox_budget.pdf", width = 7.0, height = 8.5) `,
+        q` multiplot = grid.arrange(    arrangeGrob(plots[[1]] ,
+                                                    plots[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank()), 
                                                     nrow = 1), 
                                        nrow = 1, ncol = 1) `,
         q` print(multiplot) `,
@@ -223,7 +223,7 @@ sub get_data {
     foreach my $item (keys %{$production{$Ox}}) {
         my $reshape = $production{$Ox}{$item}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
-        $production{$Ox}{$item} = $integrate;
+        $production{$Ox}{$item} = $integrate(0:13:2);
     }
 
     my $sort_function = sub { $_[0]->sum };
