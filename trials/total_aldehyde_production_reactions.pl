@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Compare reactions producing aldehydes in all mechanisms
 # Version 0; Jane Coates 20/11/2014
+# Version 1: Jane Coates 2/2/2015  comparing CBs and MCM v3.2 only
 
 use strict;
 use diagnostics;
@@ -11,29 +12,24 @@ use MECCA;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @runs = qw( MOZART_tagging );
-#my @mechanisms = qw( MOZART-4 );
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanisms = ( "(a) MCMv3.2", "(b) MCMv3.1", "(c) CRIv2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2",  "(h) CBM-IV", "(i) CB05" );
-my $index = 0;
+my @mechanisms = ( "MCMv3.2", "CBM-IV", "CB05" );
 my (%families, %weights, %plot_data);
 
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $eqn_file = "$base/$run/gas.eqn";
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    my $aldehyde_file = "$base/$run/aldehydes.txt";
+    my $aldehyde_file = "$base/${mechanism}_tagged/aldehydes.txt";
     my $aldehydes = get_species($aldehyde_file);
-    $families{$mechanisms[$index]} = [ @$aldehydes ];
-    ($plot_data{$mechanisms[$index]}) = get_data($mecca, $kpp, $mechanisms[$index]);
-    $index++;
+    $families{$mechanism} = [ @$aldehydes ];
+    ($plot_data{$mechanism}) = get_data($mecca, $kpp, $mechanism);
 }
 
 my $R = Statistics::R->new();
@@ -117,7 +113,7 @@ sub get_data {
     }
     remove_common_processes(\%production, \%consumption);
 
-    my $others = 2e8;
+    my $others = 1e8;
     foreach my $reaction (keys %production) {
         if ($production{$reaction}->sum < $others) {
             $production{"Others"} += $production{$reaction};

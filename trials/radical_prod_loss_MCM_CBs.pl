@@ -18,7 +18,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = qw( MCMv3.2 CBM-IV CB05 );
-#my @mechanisms = qw( CB05 );
+#my @mechanisms = qw( CB05 CBM-IV );
 my (%families, %weights, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -47,7 +47,8 @@ foreach my $mechanism (sort keys %data) {
     $R->run(q` pre = data.frame(Time) `);
     foreach my $ref (@{$data{$mechanism}}) {
         foreach my $reaction (sort keys %$ref) {
-            $R->set('reaction', $reaction);
+            (my $name = $reaction) =~ s/C2O3/CH3CO3/;
+            $R->set('reaction', $name);
             $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
             $R->run(q` pre[reaction] = rate `);
         }
@@ -58,17 +59,41 @@ foreach my $mechanism (sort keys %data) {
             q` data = rbind(data, pre) `,
     );
 }
-#$R->run(q` HO2NO2 = filter(data, Reaction == "HO2NO2" | Reaction == "HO2 + NO2") `);
-#my $p = $R->run(q` print(HO2NO2) `);
+#my $p = $R->run(q` print(pre) `);
 #print $p, "\n";
 
+$R->run(q` my.colours = c(  "Production Others" = "#696537", 
+                            "Consumption Others" = "#ee6738",
+                            "PAN" = "#e7e85e",
+                            "OH + PAR" = "#f9c500",
+                            "O1D" = "#6c254f", 
+                            "CH3CO3 + NO" = "#0352cb", 
+                            "CH3CO3 + NO2" = "#0e5c28", 
+                            "CH4 + OH" = "#cc6329", 
+                            "NO2 + OH" = "#2b9eb3", 
+                            "CXO3 + NO2" = "#0c3f78", 
+                            "PANX" = "#b569b3" ) `); 
+$R->run(q` data$Reaction = factor(data$Reaction, levels = c("Production Others", "CH4 + OH", "PANX", "CH3CO3 + NO", "PAN", "O1D", "OH + PAR", "NO2 + OH", "CH3CO3 + NO2", "CXO3 + NO2", "Consumption Others")) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "CBM-IV", "CB05")) `,
+);
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction, group = Reaction)) `,
         q` plot = plot + geom_bar(data = subset(data, Rate < 0), stat = "identity") `,
         q` plot = plot + geom_bar(data = subset(data, Rate > 0), stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(axis.title.y = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.text.x = element_text(face = "bold", angle = 45, vjust = 0.7, hjust = 0.8)) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = levels(data$Reaction)) `,
 );
 
-$R->run(q` CairoPDF(file = "Radicals_loss_production_budgets_by_reactions.pdf") `,
+$R->run(q` CairoPDF(file = "Radicals_loss_production_budgets_by_reactions.pdf", width = 8, height = 5.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -102,6 +127,7 @@ sub get_data {
         my $reaction_string = $kpp->reaction_string($reaction);
         $reaction_string =~ s/_(.*?)\b//g;
         my ($reactants, $products) = split / = /, $reaction_string;
+        $reactants = "OH + PAR" if ($reactants eq "ROR");
         $production_rates{$reactants} += $rate(1:$NTIME-2);
     }
 
@@ -114,6 +140,7 @@ sub get_data {
         $reaction_string =~ s/_(.*?)\b//g;
         my ($reactants, $products) = split / = /, $reaction_string;
         next if ($reactants =~ /XO2/);
+        $reactants = "OH + PAR" if ($reactants eq "ROR");
         $consumption_rates{$reactants} += $rate(1:$NTIME-2);
     }
 
@@ -135,12 +162,13 @@ sub get_data {
             my $reaction_string = $kpp->reaction_string($reaction);
             $reaction_string =~ s/_(.*?)\b//g;
             my ($reactants, $products) = split / = /, $reaction_string;
+            $reactants = "OH + PAR" if ($reactants eq "ROR");
             $production_rates{$reactants} += $rate(1:$NTIME-2);
         }
     }
     remove_common_processes(\%production_rates, \%consumption_rates);
 
-    my $others_max = 5e8;
+    my $others_max = 3.8e8;
     foreach my $reaction (keys %production_rates) {
         my $reshape = $production_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;

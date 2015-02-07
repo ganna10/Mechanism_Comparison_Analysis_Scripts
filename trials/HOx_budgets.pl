@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # HOx production and loss budgets in all mechanism
 # Version 0: Jane Coates 18/11/2014
+# Version 1: Jane Coates 30/1/2015 CBs and MCM v3.2, including loss and re-factoring code
 
 use strict;
 use diagnostics;
@@ -11,25 +12,22 @@ use MECCA;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/CB05_tagging/boxmodel");
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-my @runs = qw( MCM_3.2_tagged MCM_3.1_tagged_3.2rates CRI_tagging MOZART_tagging RADM2_tagged RACM_tagging RACM2_tagged CBM4_tagging CB05_tagging );
-my @mechanism = ( "(a) MCM v3.2", "(b) MCM v3.1", "(c) CRI v2", "(g) MOZART-4", "(d) RADM2", "(e) RACM", "(f) RACM2", "(h) CBM-IV", "(i) CB05" );
-#my @runs = qw( MOZART_tagging );
-#my @mechanism = qw( MOZART-4 );
-my $index = 0;
+#my @mechanisms = ( "CBM-IV", "CB05" );
+my @mechanisms = ( "MCMv3.2", "CBM-IV", "CB05" );
 my (%families, %weights, %plot_data);
 
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    my $eqn_file = "$base/$run/gas.eqn";
+    my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    $families{"HOx"} = [ qw( OH HO2 HO2NO2 HONO )];
+    $families{"HOx"} = [ qw( OH HO2 HO2NO2 )];
 
     my (%production, %consumption);
     $kpp->family({
@@ -41,8 +39,8 @@ foreach my $run (@runs) {
     my $producer_yields = $kpp->effect_on("HOx", $producers);
     my $consumers = $kpp->consuming("HOx");
     my $consumer_yields = $kpp->effect_on("HOx", $consumers);
-    print "No producers found in $run\n" if (@$producers == 0);
-    print "No consumers found in $run\n" if (@$consumers == 0);
+    print "No producers found in $mechanism\n" if (@$producers == 0);
+    print "No consumers found in $mechanism\n" if (@$consumers == 0);
 
     for (0..$#$producers) {
         my $reaction = $producers->[$_];
@@ -67,7 +65,7 @@ foreach my $run (@runs) {
         my ($number, $parent) = split /_/, $reaction;
         if (defined $parent) {
             my $name = get_name($parent);
-            $consumption{$parent} += $rate(1:$NTIME-2);
+            $consumption{$name} += $rate(1:$NTIME-2);
         } else {
             my $reaction_string = $kpp->reaction_string($reaction);
             $consumption{$reaction_string} += $rate(1:$NTIME-2);
@@ -77,37 +75,50 @@ foreach my $run (@runs) {
 
     my $others_max = 5e7;
     foreach my $reaction (keys %production) {
-        if ($production{$reaction}->sum < $others_max) {
-            $production{"Others"} += $production{$reaction};
-            delete $production{$reaction};
-        }
-    }
-
-    foreach my $reaction (keys %production) {
         my $reshape = $production{$reaction}->copy->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
-        $integrate = $integrate(0:13:2);
-        $production{$reaction} = $integrate;
+        if ($production{$reaction}->sum < $others_max) {
+            $production{"Production Others"} += $integrate(0:13:2);
+            delete $production{$reaction};
+        } else {
+            $production{$reaction} = $integrate(0:13:2);
+        }
+    }
+    
+    foreach my $reaction (keys %consumption) {
+        my $reshape = $consumption{$reaction}->copy->reshape($N_PER_DAY, $N_DAYS);
+        my $integrate = $reshape->sumover;
+        if ($consumption{$reaction}->sum > -$others_max) {
+            $consumption{"Consumption Others"} += $integrate(0:13:2);
+            delete $consumption{$reaction};
+        } else {
+            $consumption{$reaction} = $integrate(0:13:2);
+        }
     }
     
     my $sort_function = sub { $_[0]->sum };
-    my @sorted_data = sort { &$sort_function($production{$b}) <=> &$sort_function($production{$a}) } keys %production;
+    my @sorted_prod = sort { &$sort_function($production{$b}) <=> &$sort_function($production{$a}) } keys %production;
+    my @sorted_cons = reverse sort { &$sort_function($consumption{$b}) <=> &$sort_function($consumption{$a}) } keys %consumption;
     
     my @final_sorted_data;
-    foreach (@sorted_data) { 
-        next if ($_ eq 'Others') ;
+    foreach (@sorted_cons) { 
+        next if ($_ =~ /Others/) ;
+        push @final_sorted_data, { $_ => $consumption{$_} };
+    } 
+    push @final_sorted_data, { 'Consumption Others' => $consumption{'Consumption Others'} } if (defined $consumption{'Consumption Others'}); 
+    foreach (@sorted_prod) { 
+        next if ($_ =~ /Others/) ;
         push @final_sorted_data, { $_ => $production{$_} };
     } 
-    push @final_sorted_data, { 'Others' => $production{'Others'} } if (defined $production{'Others'}); 
-    $plot_data{$mechanism[$index]} = \@final_sorted_data; 
-    $index++;
+    push @final_sorted_data, { 'Production Others' => $production{'Production Others'} } if (defined $production{'Production Others'}); 
+    $plot_data{$mechanism} = \@final_sorted_data; 
 }
 
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
-        q` library(reshape2) `,
+        q` library(tidyr) `,
+        q` library(dplyr) `,
         q` library(Cairo) `,
-        q` library(grid) `,
 );
 
 $R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7") ]);
@@ -123,54 +134,45 @@ foreach my $mechanism (sort keys %plot_data) {
     }
     $R->set('mechanism', $mechanism);
     $R->run(q` pre$Mechanism = rep(mechanism, rep(length(Time))) `,
-            q` pre = melt(pre, id.vars = c("Time", "Mechanism"), variable.name = "Reaction", value.name = "Rate") `,
+            q` pre = gather(pre, Reaction, Rate, -Time, -Mechanism) `,
             q` data = rbind(data, pre) `,
     );
 }
 #my $p = $R->run(q` print(data) `);
 #print "$p\n";
-$R->run(q` my.colours = c(  "Others" = "#696537", 
-                            "Methane" = "#6c254f",
-                            "O1D = OH + OH" = "#f9c500", 
-                            "Ethane" = "#0352cb", 
-                            "Propane" = "#0e5c28", 
-                            "2-Methylpropane" = "#e7e85e", 
-                            "Butane" = "#ef6638", 
-                            "Pentane" = "#b569b3", 
-                            "2-Methylbutane" = "#4c9383", 
-                            "Hexane" = "#86b650", 
-                            "Ethene" = "#cc6329", 
-                            "Propene" = "#2b9eb3", 
-                            "2-Methylpropene" = "#f7c56c",
-                            "Isoprene" = "#0c3f78",
-                            "Toluene" = "#8c1531",
-                            "m-Xylene" = "#6db875",
-                            "o-Xylene" = "#f3aa7f",
-                            "p-Xylene" = "#be2448" ) `); 
-$R->run(q` data$Reaction = factor(data$Reaction, levels = c("O1D = OH + OH", "Methane", "Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Ethene", "Propene", "2-Methylpropene", "Isoprene", "Toluene", "m-Xylene", "o-Xylene", "p-Xylene", "Others")) `);
+$R->run(q` my.colours = c(  "Production Others" = "#696537", 
+                            "Consumption Others" = "#ee6738",
+                            "Methane" = "#f9c500",
+                            "O1D = OH + OH" = "#6c254f", 
+                            "HO2 + HO2 = H2O2" = "#0352cb", 
+                            "HO2 + OH = UNITY" = "#e7e85e", 
+                            "HONO + hv = NO + OH" = "#0e5c28", 
+                            "NO2 + OH = HNO3" = "#2b9eb3", 
+                            "Ethene" = "#0c3f78", 
+                            "NO + OH = HONO" = "#b569b3", 
+                            "Isoprene" = "#cc6329" ) `); 
+$R->run(q` data$Reaction = factor(data$Reaction, levels = c("Production Others", "Ethene", "Isoprene", "Methane", "HONO + hv = NO + OH", "O1D = OH + OH", "NO2 + OH = HNO3", "NO + OH = HONO", "HO2 + HO2 = H2O2", "HO2 + OH = UNITY", "Consumption Others")) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "CBM-IV", "CB05")) `,
+);
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
-        q` plot = plot + geom_bar(stat = "identity") `,
+        q` plot = plot + geom_bar(data = filter(data, Rate < 0), stat = "identity") `,
+        q` plot = plot + geom_bar(data = filter(data, Rate > 0), stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism) `,
         q` plot = plot + theme_bw() `,
-        q` plot = plot + ylab("Reaction Rate\n") `,
+        q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
-        q` plot = plot + theme(axis.title.y = element_text(size = 180, face = "bold")) `,
-        q` plot = plot + theme(axis.ticks.length = unit(2, "cm")) `,
-        q` plot = plot + theme(axis.ticks.margin = unit(1, "cm")) `,
-        q` plot = plot + theme(axis.text.x = element_text(size = 150, angle = 45, vjust = 0.5)) `,
-        q` plot = plot + theme(axis.text.y = element_text(size = 140)) `,
-        q` plot = plot + theme(strip.text = element_text(size = 200, face = "bold")) `,
+        q` plot = plot + theme(axis.title.y = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.text.x = element_text(face = "bold", angle = 45, vjust = 0.7, hjust = 0.8)) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.key.size = unit(7, "cm")) `,
-        q` plot = plot + theme(legend.text = element_text(size = 140)) `,
-        q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(levels(data$Reaction))) `,
+        q` plot = plot + scale_fill_manual(values = my.colours, limits = levels(data$Reaction)) `,
 );
 
-$R->run(q` CairoPDF(file = "HOx_budgets.pdf", width = 141, height = 200) `,
+$R->run(q` CairoPDF(file = "HOx_budgets.pdf", width = 8, height = 5.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );

@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # CH3O2 production contributions during NC5H12 degradation in MCM v3.2 and MOZART
 # Version 0: Jane Coates 18/11/2014
+# Version 1: Jane Coates 2/2/2015 looking at MCM v3.2 and CBs
 
 use strict;
 use diagnostics;
@@ -11,24 +12,23 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my $mecca = MECCA->new("$base/MCM_3.2_tagged/boxmodel");
+my $mecca = MECCA->new("$base/MCMv3.2_tagged/boxmodel");
 my $NTIME = $mecca->time->nelem;
 my $dt = $mecca->dt->at(0); 
 my $n_per_day = 43200 / $dt;
 my $n_days = int ($NTIME / $n_per_day);
 
-my @runs = qw( MCM_3.2_tagged MOZART_tagging );
-my @mechanisms = ( "MCMv3.2", "MOZART-4" );
-my @base_name = qw( CH3O2 CH3O2 );
+my @mechanisms = ( "MCMv3.2", "CB05" );
+my @base_name = qw( CH3O2 MEO2 );
 my $index = 0;
 
 my (%families, %weights, %plot_data);
-foreach my $run (@runs) {
-    my $boxmodel = "$base/$run/boxmodel";
+foreach my $mechanism (@mechanisms) {
+    my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
-    my $eqnfile = "$base/$run/gas.eqn";
+    my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile); 
-    my $spcfile = "$base/$run/gas.spc";
+    my $spcfile = "$base/${mechanism}_tagged/gas.spc";
     my $all_tagged_species = get_tagged_species($base_name[$index], $spcfile); 
     $families{$mechanisms[$index]} = [ @$all_tagged_species ];
     ($plot_data{$mechanisms[$index]}) = get_data($kpp, $mecca, $mechanisms[$index]);

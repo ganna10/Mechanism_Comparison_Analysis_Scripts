@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # compare radical production as prescribed by NO source calculation in CBs and MCM v3.2
 # Version 0: Jane Coates 29/1/2015
+# Version 1: Jane Coates 2/2/2015 assigning reactions to type rather than individual reactions
 
 use strict;
 use diagnostics;
@@ -18,7 +19,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY; 
 
 my @mechanisms = ( "MCMv3.2", "CBM-IV", "CB05" );
-#my @mechanisms = ( "CB05" );
+#my @mechanisms = ( "MCMv3.2" );
 my (%families, %weights, %data);
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
@@ -46,18 +47,8 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "O1D" = "#6c254f",
                             "HCHO + hv" = "#0e5c28", "FORM + hv" = "#0e5c28",
                             "CH4 + OH" = "#0d3e76",
-                            "C2H6 + OH" = "#cc6329",
+                            "C2H6 + OH" = "#ef6638",
                             "MEK + hv" = "#86b650" ) `,
-        q` reaction.levels = c( "O1D",
-                                "HCHO + hv",
-                                "MGLY + hv",
-                                "OH + PAR",
-                                "C2O3 + NO",
-                                "C2H4 + OH",
-                                "CXO3 + NO",
-                                "C2H6 + OH",
-                                "CH4 + OH",
-                                "Production Others" ) `,
 );
 
 $R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7") ]);
@@ -66,7 +57,7 @@ foreach my $mechanism (sort keys %data) {
     $R->run(q` pre = data.frame(Time) `);
     foreach my $ref (@{$data{$mechanism}}) {
         foreach my $reaction (sort keys %$ref) {
-            next if ($reaction eq "CH3CO3");
+            next if ($reaction =~ /NO3/ or $reaction eq "O Oxidation");
             $R->set('reaction', $reaction);
             $R->set('rate', [ map { $_ } $ref->{$reaction}->dog ]);
             $R->run(q` pre[reaction] = rate `);
@@ -85,7 +76,7 @@ $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "CBM-IV
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism ) `,
-        q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(reaction.levels)) `,
+        #q` plot = plot + scale_fill_manual(values = my.colours, limits = rev(reaction.levels)) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
         q` plot = plot + scale_x_discrete(expand = c(0, 0)) `,
         q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
@@ -148,20 +139,9 @@ sub get_data {
         my ($reactants, $products) = split / = /, $reaction_string;
         if ($reactants eq "ROR") {
             $reactants = "OH + PAR" ;
-        } elsif ($reactants eq "ETH + OH" and $mechanism =~ /CB/) {
-            $reactants = "C2H4 + OH";
-        } elsif ($reactants eq "ETHA + OH") {
-            $reactants = "C2H6 + OH";
         }
-        $production_rates{$reactants} += $rate(1:$NTIME-2);
-    }
-
-    my $others = 3.3e7;
-    foreach my $reaction (keys %production_rates) {
-        if ($production_rates{$reaction}->sum < $others) {
-            $production_rates{'Production Others'} += $production_rates{$reaction};
-            delete $production_rates{$reaction};
-        }
+        my $label = get_reaction_type($reactants);
+        $production_rates{$label} += $rate(1:$NTIME-2);
     }
 
     foreach my $reaction (keys %production_rates) {
@@ -175,12 +155,33 @@ sub get_data {
     my @sorted_plot_data;
     my @sorted_prod = sort { &$sort_function($production_rates{$b}) <=> &$sort_function($production_rates{$a}) } keys %production_rates;
     foreach (@sorted_prod) { #sum up rates of reactions, starting with reaction with lowest sum, production others added separately 
-        next if ($_ eq 'Production Others');
         push @sorted_plot_data, { $_ => $production_rates{$_} };
     }
-
-    push @sorted_plot_data, { 'Production Others' => $production_rates{'Production Others'} } if (defined $production_rates{'Production Others'}); #add Production Others to the beginning 
     return \@sorted_plot_data;
+}
+
+sub get_reaction_type {
+    my ($reactants) = @_;
+    my $label;
+    if ($reactants =~ /O1D/ or $reactants !~ /\+/) {
+        $label = "Primary Production";
+    } elsif ($reactants =~ /hv/) {
+        $label = "Photolysis";
+    } elsif ($reactants =~ /NO\b/) {
+        $label = "RO2 + NO";
+    } elsif ($reactants =~ /NO3/) {
+        $label = "VOC + NO3";
+    } elsif ($reactants =~ /OH/) {
+        $label = "OH Oxidation";
+    } elsif ($reactants =~ /\+ O3|O3 \+/) {
+        $label = "Ozonolysis";
+    } elsif ($reactants =~ /\+ O|O \+/) {
+        $label = "O Oxidation"; 
+    } else {
+        print "No label for $reactants\n";
+        $label = $reactants;
+    }
+    return $label;
 }
 
 sub get_species {

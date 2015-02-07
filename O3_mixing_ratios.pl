@@ -1,7 +1,8 @@
-#! /usr/bin/env perl
+
 # Compare O3 mixing ratio time series
 # Version 0: Jane Coates 18/12/2014
 # Version 1: Jane Coates 8/1/2015 Adding OH to plot
+# Version 2: Jane Coates 6/2/2015 Removing OH from plot, calculating difference on first day
 
 use strict;
 use diagnostics;
@@ -17,18 +18,17 @@ my $times = $mecca->time;
 $times -= $times->at(0);
 $times /= 86400;
 $times = $times(1:$NTIME-2);
+my $dt = $mecca->dt->at(0);
+my $n_per_day = 86400 / $dt;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05" ); 
-my @species = qw(O3 OH);
 my %mixing_ratio;
 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
-    foreach my $species (@species) {
-        my $mixing_ratio = $mecca->tracer($species);
-        $mixing_ratio{$mechanism}{$species} = $mixing_ratio(1:$NTIME-2) * 1e9;
-    }
+    my $mixing_ratio = $mecca->tracer("O3");
+    $mixing_ratio{$mechanism}{"O3"} = $mixing_ratio(1:$NTIME-2) * 1e9;
 }
 
 my $R = Statistics::R->new();
@@ -57,21 +57,19 @@ $R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanism, group = Mechanism)) `,
         q` plot = plot + geom_line() `,
-        q` plot = plot + facet_wrap( ~ Species, scales = "free" ) `,
         q` plot = plot + scale_x_continuous(limits = c(0, 7), breaks = seq(0, 7, 1), expand = c(0, 0)) `,
-        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0.5)) `,
         q` plot = plot + xlab("Time (days)") `,
         q` plot = plot + ylab("Mixing Ratio (ppbv)") `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
         q` plot = plot + theme_bw() `,
-        q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
-        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
-        q` plot = plot + theme(legend.position = "top") `,
+        q` plot = plot + theme(legend.position = c(1, 1.058)) `,
+        q` plot = plot + theme(legend.justification = c(1, 1.058)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
 );
 
 $R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.0, height = 5.6) `,
@@ -80,3 +78,13 @@ $R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.0, height = 5.6) `,
 );
 
 $R->stop();
+
+#calculate difference on first day between RADM2 and RACM (largest and lowest O3 mixing ratios)
+my $radm2_O3 = $mixing_ratio{"RADM2"}{"O3"};
+my $radm2_O3_day1 = $radm2_O3(0:$n_per_day);
+my $radm2_day1_max = $radm2_O3_day1->max;
+
+my $racm_O3 = $mixing_ratio{"RACM"}{"O3"};
+my $racm_O3_day1 = $racm_O3(0:$n_per_day);
+my $racm_day1_max = $racm_O3_day1->max;
+print $radm2_day1_max - $racm_day1_max, "\n";
