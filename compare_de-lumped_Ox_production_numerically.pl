@@ -19,7 +19,7 @@ my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my (%data, %families, %weights);
 #my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 ); 
-my @mechanisms = qw( RADM2 MCMv3.2 ); 
+my @mechanisms = qw( CBM-IV MCMv3.2 ); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base_dir/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
@@ -39,10 +39,11 @@ $R->run(q` library(ggplot2) `,
         q` library(dplyr) `,
 );
 
-$R->set('VOC', [ sort keys %{$data{"RADM2"}} ]);
+$R->set('VOC', [ sort keys %{$data{"CBM-IV"}} ]);
 $R->run(q` data = data.frame(VOC) `);
 foreach my $mechanism (sort keys %data) {
-    $R->set('mechanism', $mechanism);
+    (my $name = $mechanism) =~ s/-/./;
+    $R->set('mechanism', $name);
     my @Ox_prod = ();
     foreach my $VOC (sort keys %{$data{$mechanism}}) {
         push @Ox_prod, $data{$mechanism}{$VOC};
@@ -50,7 +51,7 @@ foreach my $mechanism (sort keys %data) {
     $R->set('prod', [@Ox_prod]);
     $R->run(q` data[mechanism] = prod `);
 }
-$R->run(q` data = mutate(data, diff.RADM2 = RADM2 - MCMv3.2) `,
+$R->run(q` data = mutate(data, diff.CBM.IV = CBM.IV - MCMv3.2) `,
 );
 my $p = $R->run(q` print(data) `);
 my $out_file = "Ox_production_VOC_each_mechanism.txt";

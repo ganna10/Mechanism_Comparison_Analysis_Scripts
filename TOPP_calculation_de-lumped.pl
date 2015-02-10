@@ -20,8 +20,8 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
-my @mechanisms = qw( MCMv3.2 );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+#my @mechanisms = qw( CBM-IV );
 my (%families, %weights, %data); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
@@ -212,9 +212,11 @@ sub get_TOPPs {
                             $emissions{$VOC} += $emission_rate->sum * $dt / 7; #NC7H16 => 7 PAR
                         } elsif ($VOC =~ /NC8H18/) {
                             $emissions{$VOC} += $emission_rate->sum * $dt / 8; #NC8H18 => 8 PAR
-                        } elsif ($VOC =~ /BUT1ENE/ and $VOC eq 'PAR') {
+                        } elsif ($VOC =~ /BUT1ENE/ and $name =~ 'PAR') {
+                            print "match\n";
                             $emissions{$VOC} += $emission_rate->sum * $dt / 2; #BUT1ENE => 2 PAR
-                        } elsif ($VOC =~ /MEPROPENE/ and $VOC eq 'PAR') {
+                        } elsif ($VOC =~ /MEPROPENE/ and $name =~ 'PAR') {
+                            print "match\n";
                             $emissions{$VOC} += $emission_rate->sum * $dt / 3; #MEPROPENE => 3 PAR
                         } else {
                             $emissions{$VOC} += $emission_rate->sum * $dt;
@@ -256,7 +258,8 @@ sub get_TOPPs {
                             $emissions{$VOC} += $emission_rate->sum * $dt / 7; #NC7H16 => 7 PAR
                         } elsif ($VOC =~ /NC8H18/) {
                             $emissions{$VOC} += $emission_rate->sum * $dt / 8; #NC8H18 => 8 PAR
-                        } elsif ($VOC =~ /BUT1ENE/ and $VOC eq 'PAR') {
+                        } elsif ($VOC =~ /BUT1ENE/ and $name =~ 'PAR') {
+                            print "match\n";
                             $emissions{$VOC} += $emission_rate->sum * $dt / 2; #BUT1ENE => 2 PAR
                         } else {
                             $emissions{$VOC} += $emission_rate->sum * $dt;

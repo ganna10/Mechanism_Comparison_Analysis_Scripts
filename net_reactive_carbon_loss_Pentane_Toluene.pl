@@ -2,7 +2,8 @@
 # analysis of net rate of reactive carbon loss during pentane and toluene degradation in each mechanism
 # Version 0: Jane Coates 23/9/2014
 # Version 1: Jane Coates 9/12/2014 updating code for constant emission runs
-# Version 2: Jane Coates 13/1/2014 changing treatment of lumped representations
+# Version 2: Jane Coates 13/1/2015 changing treatment of lumped representations
+# Version 3: Jane Coates 10/2/2015 removing normalising by emissions
 
 use strict;
 use diagnostics;
@@ -74,7 +75,7 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + geom_point() `,
         q` plot = plot + facet_wrap( ~ VOC) `,
         q` plot = plot + theme_bw() `,
-        q` plot = plot + ylab("Net Carbon Loss Rate per emitted VOC (s-1)") `,
+        q` plot = plot + ylab("Net Carbon Loss Rate (molecules cm-3 s-1)") `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
@@ -147,34 +148,6 @@ sub get_data {
             }
         }
     }
-    my $parent;
-    if ($VOC =~ /TOL/) {
-        if ($mechanism =~ /CB/) {
-            $parent = "TOL_TOLUENE";
-        } elsif ($mechanism =~ /RA/) {
-            $parent = "TOL";
-        } else {
-            $parent = "TOLUENE";
-        }
-    } else { #pentane
-        if ($mechanism =~ /CB/) {
-            $parent = "PAR_NC5H12";
-        } elsif ($mechanism =~ /RA/) {
-            $parent = "HC5";
-        } elsif ($mechanism eq "MOZART-4") {
-            $parent = "BIGALK";
-        } else {
-            $parent = "NC5H12";
-        }
-    }
-    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
-    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-    my $emission_rate = $mecca->rate($reaction_number); 
-    $emission_rate = $emission_rate(1:$NTIME-2);
-    $emission_rate = $emission_rate->sum * $dt; 
-    $emission_rate /= 5 if ($VOC eq "NC5H12" and $mechanism =~ /CB/);
-    #normalise by emissions
-    $carbon_loss_rate{$_} /= $emission_rate foreach (keys %carbon_loss_rate);
 
     my $overall_carbon_loss_rate = 0;
     $overall_carbon_loss_rate += $carbon_loss_rate{$_} foreach (keys %carbon_loss_rate);
