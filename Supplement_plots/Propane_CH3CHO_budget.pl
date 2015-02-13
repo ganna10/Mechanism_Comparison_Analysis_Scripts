@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
-# CH3CHO budget during propane degradation in MCM, RADM2, RACM and RACM2
-# Version 0: Jane Coates 12/2/2015
+# CH3CHO budget during propane degradation in MCM and RADM2
+# Version 0: Jane Coates 13/2/2015
 
 use strict;
 use diagnostics;
@@ -17,8 +17,8 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $N_TIME / $N_PER_DAY;
 
-my @mechanisms = qw( MCMv3.2 RADM2 RACM RACM2 );
-my @species = qw( CH3CHO ALD ALD ACD );
+my @mechanisms = qw( MCMv3.2 RADM2 );
+my @species = qw( CH3CHO ALD );
 my $index = 0;
 my (%families, %weights, %data);
 foreach my $mechanism (@mechanisms) {
@@ -56,9 +56,35 @@ foreach my $mechanism (sort keys %data) {
     );
 }
 
+$R->run(q` data$Reaction = factor(data$Reaction, levels = rev(c("C2H5O", "OH + PPN", "HC3P + NO", "HC3 + OH", "ETHP + NO", "OH + OP2", "Others"))) `,
+        q` my.colours = c( "C2H5O" = "#2b9eb3",
+                            "OH + PPN" = "#b569b3",
+                            "HC3P + NO" = "#6c254f",  
+                            "HC3 + OH" = "#f9c500",
+                            "ETHP + NO" = "#0e5c28",
+                            "OH + OP2" = "#ef6638",
+                            "Others" = "#696537") `,
+);
+
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + facet_wrap( ~ Mechanism, nrow = 1) `,
+        q` plot = plot + ylab("Reaction Rate (molecules cm-3 s-1)") `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + theme(axis.title.y = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.title.x = element_blank()) `,
+        q` plot = plot + theme(axis.text.x = element_text(face = "bold")) `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
+        q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0)) `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 0)) `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(legend.position = c(1, 1)) `,
+        q` plot = plot + theme(legend.justification = c(1, 1)) `,
+        q` plot = plot + scale_fill_manual(values = my.colours) `,
 );
 
 $R->run(q` CairoPDF(file = "C3H8_CH3CHO_budget.pdf", width = 8.6, height = 6) `,

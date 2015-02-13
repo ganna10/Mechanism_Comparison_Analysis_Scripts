@@ -81,12 +81,15 @@ $R->run(q` plot = ggplot(data, aes(x = NO.Percent, y = Production, colour = Item
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(axis.text.x = element_text(angle = 45, hjust = 0.8, vjust = 0.7)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + scale_colour_manual(values = c("#6c254f", "#4c9383"), limits = c("Ox", "O3")) `,
+        q` plot = plot + theme(legend.position = c(1, 0.8)) `,
+        q` plot = plot + theme(legend.justification = c(1, 0.8)) `,
 );
 
 $R->run(q` CairoPDF(file = "Ox_production_vs_NO_emissions.pdf", width = 8, height = 11) `,
