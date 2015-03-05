@@ -1,8 +1,9 @@
-
+#! /usr/bin/env perl
 # Compare O3 mixing ratio time series
 # Version 0: Jane Coates 18/12/2014
 # Version 1: Jane Coates 8/1/2015 Adding OH to plot
 # Version 2: Jane Coates 6/2/2015 Removing OH from plot, calculating difference on first day
+# Version 3: Jane Coates 5/3/2015 calculating difference of first day O3 in RACM2
 
 use strict;
 use diagnostics;
@@ -88,3 +89,8 @@ my $racm_O3 = $mixing_ratio{"RACM"}{"O3"};
 my $racm_O3_day1 = $racm_O3(0:$n_per_day);
 my $racm_day1_max = $racm_O3_day1->max;
 print $radm2_day1_max - $racm_day1_max, "\n";
+
+my $racm2_O3 = $mixing_ratio{"RACM2"}{"O3"};
+my $racm2_O3_day1 = $racm2_O3(0:$n_per_day);
+my $racm2_day1_max = $racm2_O3_day1->max;
+print $radm2_day1_max - $racm2_day1_max, "\n";
