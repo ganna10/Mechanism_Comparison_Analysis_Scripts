@@ -1,29 +1,35 @@
 #! /usr/bin/env perl
-# Compare % of unreacted alkanes after first day
-# Version 0: Jane Coates 5/3/2015
+# plot reaction rates of OH + alkane every mechanism
+# Version 0: Jane Coates 6/3/2015
 
 use strict;
 use diagnostics;
-use PDL;
 use MECCA;
+use KPP;
+use PDL;
 use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
+my $times = $mecca->time;
+$times -= $times->at(0);
+$times /= 86400;
+
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 );
 my @alkanes = qw( Ethane Propane Butane 2-Methylpropane Pentane 2-Methylbutane Hexane Heptane Octane );
 my %data;
-
-my $mecca = MECCA->new("$base/CB05_tagged/boxmodel");
-my $dt = $mecca->dt->at(0);
-my $n_per_day = 86400 / $dt;
 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel);
+    my $eqn = "$base/${mechanism}_tagged/gas.eqn";
+    my $kpp = KPP->new($eqn);
     foreach my $alkane (@alkanes) {
         my $species = get_species($alkane, $mechanism);
-        $data{$mechanism}{$alkane} = $mecca->tracer($species);
+        my $reaction = $kpp->reacting_with($species, "OH");
+        my $reaction_number = $kpp->reaction_number($reaction->[0]);
+        $data{$mechanism}{$alkane} = $mecca->rate($reaction_number);
     }
 }
 
@@ -59,51 +65,34 @@ foreach my $mechanism (sort keys %data) {
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
-        q` library(grid) `, 
         q` library(Cairo) `,
-        q` library(scales) `,
 );
-
+$R->set('Time', [ map { $_ } $times->dog ]);
 $R->run(q` data = data.frame() `);
-
-foreach my $mechanism (sort keys %data) {
+foreach my $mechanism (keys %data) {
     $R->set('mechanism', $mechanism);
+    $R->run(q` pre = data.frame(Time) `);
     foreach my $alkane (sort keys %{$data{$mechanism}}) {
-        $R->run(q` pre = data.frame(Mechanism = c(mechanism)) `);
         $R->set('alkane', $alkane);
-        $R->set('initial.mr', [ $data{$mechanism}{$alkane}->max ]);
-        $R->set('day2.mr', [ $data{$mechanism}{$alkane}->at(73) ]);
-        $R->run(q` unreacted = day2.mr / initial.mr `,
-                q` pre$Alkane = alkane `,
-                q` pre$Initial.MR = initial.mr `,
-                q` pre$Day2.MR = day2.mr `,
-                q` pre$Unreacted = unreacted `,
-                q` data = rbind(data, pre) `,
-        );
+        $R->set('rate', [ map { $_ } $data{$mechanism}{$alkane}->dog ]);
+        $R->run(q` pre[alkane] = rate `);
     }
+    $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
+            q` pre = gather(pre, Alkane, Rate, -Time, -Mechanism) `,
+            q` data = rbind(data, pre) `,
+    );
 }
-#my $p = $R->run(q` print(data) `);
+#my $p = $R->run(q` print(pre) `);
 #print $p, "\n";
-$R->run(q` data$Alkane = factor(data$Alkane, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane")) `,
-        q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
+
+$R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#b569b3", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
+$R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, colour = Mechanism, group = Mechanism)) `,
+        q` plot = plot + geom_line() `,
+        q` plot = plot + facet_wrap( ~ Alkane, scales = "free")`,
+        q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` plot = ggplot(data, aes(y = Unreacted, x = Mechanism)) `,
-        q` plot = plot + geom_point() `,
-        q` plot = plot + coord_flip() `,
-        q` plot = plot + facet_wrap( ~ Alkane, ncol = 3)`,
-        q` plot = plot + scale_y_continuous(labels = percent) `,
-        q` plot = plot + theme_bw() `,
-        q` plot = plot + theme(panel.grid = element_blank()) `,
-        q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(axis.title = element_blank()) `,
-        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
-        q` plot = plot + theme(axis.text.y = element_text(face = "bold")) `,
-        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
-        q` plot = plot + theme(panel.margin.x = unit(5, "mm")) `,
-);
-
-$R->run(q` CairoPDF(file = "alkane_unreacted_after_day1.pdf", width = 6, height = 8.6) `,
+$R->run(q` CairoPDF(file = "Alkanes_initial_OH_reaction_rates.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );

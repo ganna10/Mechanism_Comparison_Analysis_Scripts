@@ -68,6 +68,8 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + geom_point() `,
         q` plot = plot + facet_wrap( ~ VOC) `,
         q` plot = plot + theme_bw() `,
+        q` plot = plot + scale_x_discrete(expand = c(0, 0.2)) `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 3e6)) `,
         q` plot = plot + ylab("Net Carbon Loss Rate (molecules cm-3 s-1)") `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
@@ -101,7 +103,7 @@ sub get_data {
     for (0..$#$all_reactions) { #get rates for all producing reactions
         my $reaction = $all_reactions->[$_];
         my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-        next unless (defined $parent and $parent eq $VOC);
+        next unless (defined $parent and $parent =~ $VOC);
         my $reaction_string = $kpp->reaction_string($reaction);
         $reaction_string =~ s/_(.*?)\b//g;
         next if ($reaction_string eq "CO + OH = HO2"); 
@@ -116,14 +118,18 @@ sub get_data {
 
     foreach my $reaction (keys %carbon_loss_rate) {
         if ($VOC =~ /TOL/) {
-            if ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 7 / 7.1;
+            if ($mechanism eq "RACM2") {
+                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.868;
+            } elsif ($mechanism =~ /RA/) {
+                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.667;
+            } elsif ($mechanism =~ /MO/) {
+                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.478;
             }
         } else { #pentane
-            if ($mechanism eq "RACM2"){
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 5 / 5.6;
-            } elsif ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 5 / 5.6;
+            if ($mechanism =~ /RA/){
+                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.264;
+            } elsif ($mechanism =~ /MO/) {
+                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.146;
             }
         }
     }

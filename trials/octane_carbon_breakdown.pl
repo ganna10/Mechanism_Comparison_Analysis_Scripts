@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
-# Plot Ox production of carbon numbers as percentage of total Ox production for octane
-# Version 0: Jane Coates 25/12/2014
+# Plot Ox production of carbon numbers of total Ox production for octane for all mechanisms.
+# Version 0: Jane Coates 6/3/2015
 
 use strict;
 use diagnostics;
@@ -18,8 +18,8 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-my (%n_carbon, %families, %weights, %data);
-
+#my @mechanisms = qw( RADM2 RACM RACM2 );
+my (%n_carbon, %families, %weights, %data); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
@@ -41,14 +41,14 @@ foreach my $mechanism (@mechanisms) {
 my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
-        q` library(dplyr) `,
         q` library(Cairo) `,
         q` library(scales) `,
         q` library(grid) `,
 );
 
 $R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
-$R->run(q` data = data.frame() `); 
+$R->run(q` data = data.frame() `);
+
 foreach my $run (sort keys %data) {
     foreach my $VOC (sort keys %{$data{$run}}) {
         $R->run(q` pre.sort = data.frame(Time) `);
@@ -88,27 +88,35 @@ $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", 
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
 
 $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
-        q` plot = plot + geom_bar(stat = "identity", width = 0.5) `,
+        q` plot = plot + geom_bar(stat = "identity") `,
         q` plot = plot + coord_flip() `,
         q` plot = plot + facet_grid( Time ~ VOC ) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(limits = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
+        q` plot = plot + scale_y_continuous(expand = c(0, 5e-6)) `,
+        q` plot = plot + ylab("Day-time Ox Production attributed to Carbon Number of Degradation Products\n(molecules(Ox) / molecules (VOC))") `,
+        q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
+        q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
+        q` plot = plot + theme(axis.title.y = element_blank()) `,
         q` plot = plot + theme(strip.text.y = element_text(face = "bold", angle = 0)) `,
         q` plot = plot + theme(strip.text.x = element_text(face = "bold")) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
+        q` plot = plot + theme(axis.title.x = element_text(face = "bold")) `,
+        #q` plot = plot + theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + scale_fill_manual(values = my.colours, labels = my.names) `,
 );
 
-$R->run(q` CairoPDF(file = "octane_carbon_number_Ox_production.pdf", width = 8.7, height = 10) `,
+$R->run(q` CairoPDF(file = "octane_Ox_production_by_C_number.pdf", width = 8.7, height = 10) `,
         q` print(plot) `,
         q` dev.off() `,
 );
 
-$R->stop;
+$R->stop();
 
 sub get_data {
     my ($kpp, $mecca, $mechanism, $carbons, $VOC) = @_;
@@ -116,7 +124,7 @@ sub get_data {
     $families{"Ox_${mechanism}_${VOC}"} = $families{"Ox_$mechanism"};
     $families{"HO2x_${mechanism}_$VOC"} = [ qw( HO2 HO2NO2 ) ];
 
-    my ($producers, $producer_yields, %production_rates);
+    my ($producers, $producer_yields, %production_rates, $consumers, $consumer_yields, %consumption_rates);
     my @families = ("Ox_${mechanism}_$VOC", "HO2x_${mechanism}_$VOC");
     foreach my $family (@families) {
         if (exists $families{$family}) { 
@@ -127,10 +135,13 @@ sub get_data {
             });
             $producers = $kpp->producing($family);
             $producer_yields = $kpp->effect_on($family, $producers);  
+            $consumers = $kpp->consuming($family);
+            $consumer_yields = $kpp->effect_on($family, $consumers);  
         } else {
             print "No family found for $family\n";
         } 
         die "No producers found for $family\n" if (@$producers == 0);
+        die "No consumers found for $family\n" if (@$consumers == 0);
         
         for (0..$#$producers) { #get rates for all producing reactions
             my $reaction = $producers->[$_];
@@ -154,6 +165,32 @@ sub get_data {
                 } elsif ($_ =~ /HC5\b/) {
                     my $lookup = "HC5";
                     $production_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
+                }
+            }
+        }
+
+        for (0..$#$consumers) { #get rates for all consuming reactions
+            my $reaction = $consumers->[$_];
+            my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
+            next unless (defined $parent and $parent eq $VOC);
+            my $reaction_number = $kpp->reaction_number($reaction);
+            my $rate = $consumer_yields->[$_] * $mecca->rate($reaction_number); 
+            next if ($rate->sum == 0); # do not include reactions that do not occur 
+            my ($reactants) = $kpp->reactants($reaction);
+            foreach (@$reactants) {
+                if ($_ =~ /_/) {
+                    next if ($_ =~ /XO2/ and $family =~ /RADM2|RACM|RACM2|CBM-IV|CB05/);
+                    my ($lookup, $rest) = split '_', $_;
+                    if (defined $carbons{$lookup}) { 
+                        $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
+                    } elsif ($lookup =~ /CO/) {
+                        $consumption_rates{'C1'} += $rate(1:$NTIME-2);
+                    } else {
+                        print "nothing found for $lookup\n";
+                    }
+                } elsif ($_ =~ /HC5\b/) {
+                    my $lookup = "HC5";
+                    $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
                 }
             }
         }
@@ -184,35 +221,53 @@ sub get_data {
             } 
         } 
     }
-
-    #get parent species emissions for each mechanism
-    my $emission_rate;
-    if ($mechanism =~ /CB/) {
-        my $name = "PAR_$VOC";
-        my $emission_reaction = $kpp->producing_from($name, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        if ($VOC eq "NC8H18") {
-            $emission_rate = $mecca->rate($reaction_number) / 8; #NC8H18 => 8 PAR
-        } elsif ($VOC eq "NC6H14") {
-            $emission_rate = $mecca->rate($reaction_number) / 6; #NC6H14 => 6 PAR
+    remove_common_processes(\%production_rates, \%consumption_rates);
+    my $parent;
+    if ($VOC =~ /TOL/) {
+        if ($mechanism =~ /CB/) {
+            $parent = "TOL_TOLUENE";
+        } elsif ($mechanism =~ /RA/) {
+            $parent = "TOL";
+        } else {
+            $parent = "TOLUENE";
         }
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $dt;
-    } else {
-        my $emission_reaction = $kpp->producing_from($VOC, "UNITY");
-        my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
-        $emission_rate = $mecca->rate($reaction_number); 
-        $emission_rate = $emission_rate(1:$NTIME-2);
-        $emission_rate = $emission_rate->sum * $dt; 
+    } else { #pentane
+        if ($mechanism =~ /CB/) {
+            $parent = "PAR_NC8H18";
+        } elsif ($mechanism =~ /RA/) {
+            $parent = "HC8";
+        } elsif ($mechanism eq "MOZART-4") {
+            $parent = "BIGALK";
+        } else {
+            $parent = "NC8H18";
+        }
     }
-    #normalise by dividing reaction rate of intermediate (molecules (Product) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
+    my $emission_reaction = $kpp->producing_from($parent, "UNITY");
+    my $reaction_number = $kpp->reaction_number($emission_reaction->[0]);
+    my $emission_rate = $mecca->rate($reaction_number); 
+    $emission_rate = $emission_rate(1:$NTIME-2);
+    $emission_rate = $emission_rate->sum * $dt; 
+    $emission_rate /= 8 if ($VOC eq "NC8H18" and $mechanism =~ /CB/);
+    
+    #normalise by dividing reaction rate of intermediate (molecules (intermediate) /cm3/s) by number density of parent VOC (molecules (VOC) /cm3)
     $production_rates{$_} /= $emission_rate foreach (sort keys %production_rates);
 
     foreach my $C (keys %production_rates) {
+        if ($VOC =~ /TOL/) {
+            if ($mechanism =~ /RA/) {
+                $production_rates{$C} = $production_rates{$C} * 7 / 7.1;
+            }
+        } else {
+            if ($mechanism eq "MOZART-4") {
+                $production_rates{$C} = $production_rates{$C} * 8 / 5;
+            } elsif ($mechanism =~ /RA/) {
+                $production_rates{$C} = $production_rates{$C} * 8 / 7.9;
+            }
+        }
         my $reshape = $production_rates{$C}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
         $integrate = $integrate(0:13:2);
-        $production_rates{$C} = $integrate;
+        $production_rates{$C} = $integrate * $dt;
     }
     my @prod_sorted_data = sort { $a cmp $b } keys %production_rates; 
     my @final_sorted_data;
@@ -375,16 +430,6 @@ sub get_mechanism_species {
             $mechanism_species = "BIGALK";
         } elsif ($run =~ /RADM|RACM/) {
             $mechanism_species = "HC8";
-        } else {
-            print "No mechanism species found for $NMVOC\n";
-        }
-    } elsif ($NMVOC eq "Hexane") {
-        if ($run =~ /MCM|CRI|CB/) {
-            $mechanism_species = "NC6H14";
-        } elsif ($run =~ /MOZART/) {
-            $mechanism_species = "BIGALK";
-        } elsif ($run =~ /RADM|RACM/) {
-            $mechanism_species = "HC5";
         } else {
             print "No mechanism species found for $NMVOC\n";
         }
