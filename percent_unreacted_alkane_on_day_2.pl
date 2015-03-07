@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
 # Compare % of unreacted alkanes after first day
-# Version 0: Jane Coates 5/3/2015
+# Version 0: Jane Coates 7/3/2015
 
 use strict;
 use diagnostics;
@@ -10,7 +10,7 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 CBM-IV CB05 );
 my @alkanes = qw( Ethane Propane Butane 2-Methylpropane Pentane 2-Methylbutane Hexane Heptane Octane );
 my %data;
 
@@ -24,35 +24,6 @@ foreach my $mechanism (@mechanisms) {
     foreach my $alkane (@alkanes) {
         my $species = get_species($alkane, $mechanism);
         $data{$mechanism}{$alkane} = $mecca->tracer($species);
-    }
-}
-
-###fractional_contributions of lumped species
-foreach my $mechanism (sort keys %data) {
-    if ($mechanism eq "RACM2") {
-        $data{$mechanism}{"Propane"} *= 0.628;
-        $data{$mechanism}{"Butane"} *= 0.243;
-        $data{$mechanism}{"2-Methylpropane"} *= 0.129;
-        $data{$mechanism}{"Pentane"} *= 0.264;
-        $data{$mechanism}{"2-Methylbutane"} *= 0.615;
-        $data{$mechanism}{"Hexane"} *= 0.086;
-        $data{$mechanism}{"Heptane"} *= 0.035; 
-    } elsif ($mechanism =~ /RA/) {
-        $data{$mechanism}{"Propane"} *= 0.628;
-        $data{$mechanism}{"Butane"} *= 0.243;
-        $data{$mechanism}{"2-Methylpropane"} *= 0.129;
-        $data{$mechanism}{"Pentane"} *= 0.264;
-        $data{$mechanism}{"2-Methylbutane"} *= 0.615;
-        $data{$mechanism}{"Hexane"} *= 0.086;
-        $data{$mechanism}{"Heptane"} *= 0.035;
-    } elsif ($mechanism =~ /MO/) { 
-        $data{$mechanism}{"Butane"} *= 0.285;
-        $data{$mechanism}{"2-Methylpropane"} *= 0.151;
-        $data{$mechanism}{"Pentane"} *= 0.146;
-        $data{$mechanism}{"2-Methylbutane"} *= 0.340;
-        $data{$mechanism}{"Hexane"} *= 0.048;
-        $data{$mechanism}{"Heptane"} *= 0.020;
-        $data{$mechanism}{"Octane"} *= 0.010;
     }
 }
 
@@ -85,7 +56,7 @@ foreach my $mechanism (sort keys %data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 $R->run(q` data$Alkane = factor(data$Alkane, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane")) `,
-        q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05"))) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "CBM-IV", "CB05"))) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(y = Unreacted, x = Mechanism)) `,
@@ -103,7 +74,7 @@ $R->run(q` plot = ggplot(data, aes(y = Unreacted, x = Mechanism)) `,
         q` plot = plot + theme(panel.margin.x = unit(5, "mm")) `,
 );
 
-$R->run(q` CairoPDF(file = "alkane_unreacted_after_day1.pdf", width = 6, height = 8.6) `,
+$R->run(q` CairoPDF(file = "alkane_unreacted_after_day1.pdf") `,
         q` print(plot) `,
         q` dev.off() `,
 );
