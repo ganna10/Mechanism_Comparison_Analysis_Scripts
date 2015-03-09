@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # Compare % of unreacted alkanes after first day
 # Version 0: Jane Coates 7/3/2015
+# Version 1: Jane Coates 9/3/2015 removing CRI v2 from analysis
 
 use strict;
 use diagnostics;
@@ -10,7 +11,7 @@ use PDL::NiceSlice;
 use Statistics::R;
 
 my $base = "/local/home/coates/MECCA";
-my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 CBM-IV CB05 );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CBM-IV CB05 );
 my @alkanes = qw( Ethane Propane Butane 2-Methylpropane Pentane 2-Methylbutane Hexane Heptane Octane );
 my %data;
 
@@ -56,7 +57,7 @@ foreach my $mechanism (sort keys %data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 $R->run(q` data$Alkane = factor(data$Alkane, levels = c("Ethane", "Propane", "Butane", "2-Methylpropane", "Pentane", "2-Methylbutane", "Hexane", "Heptane", "Octane")) `,
-        q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CRIv2", "CBM-IV", "CB05"))) `,
+        q` data$Mechanism = factor(data$Mechanism, levels = rev(c("MCMv3.2", "MCMv3.1", "CBM-IV", "CB05"))) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(y = Unreacted, x = Mechanism)) `,
