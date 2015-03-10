@@ -19,7 +19,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @mechanisms = qw( CB05 );
+#my @mechanisms = qw( CBM-IV CB05 );
 my (%n_carbon, %families, %weights, %data); 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
@@ -79,13 +79,13 @@ foreach my $run (sort keys %data) {
                 q` pre.sort = gather(pre.sort, C.number, Rate, -Time, -Mechanism, -VOC) `,
                 q` data = rbind(data, pre.sort) `,
         );
-#my $p = $R->run(q` print(pre.sort) `);
-#print $p, "\n";
     }
 }
 $R->run(q` my.colours = c("C8" = "#6db875", "C7" = "#0c3f78", "C6" = "#b569b3", "C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9c500", "C1" = "#6c254f") `);
 $R->run(q` my.names = c("C8" = "C8 ", "C7" = "C7 ", "C6" = "C6 ", "C5" = "C5 ", "C4" = "C4 ", "C3" = "C3 ", "C2" = "C2 ", "C1" = "C1 ") `);
 $R->run(q` data$C.number = factor(data$C.number, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8")) `);
+my $p = $R->run(q` print(data) `);
+print $p, "\n";
 
 $R->run(q` plot = ggplot(data, aes(y = Rate, x = Mechanism, fill = C.number)) `,
         q` plot = plot + geom_bar(stat = "identity") `,
@@ -155,9 +155,11 @@ sub get_data {
                 if ($_ =~ /_/) {
                     next if ($_ =~ /XO2/ and $family =~ /RADM2|RACM|RACM2|CBM-IV|CB05/);
                     my ($lookup, $rest) = split '_', $_;
-                    if (defined $carbons{$lookup}) { 
+                    if (defined $carbons{$lookup} and $carbons{$lookup} != 0) { 
                         $production_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
                     } elsif ($lookup =~ /CO/) {
+                        $production_rates{'C1'} += $rate(1:$NTIME-2);
+                    } elsif ($lookup =~ /ROR/) {
                         $production_rates{'C1'} += $rate(1:$NTIME-2);
                     } else {
                         print "nothing found for $lookup\n";
@@ -181,9 +183,11 @@ sub get_data {
                 if ($_ =~ /_/) {
                     next if ($_ =~ /XO2/ and $family =~ /RADM2|RACM|RACM2|CBM-IV|CB05/);
                     my ($lookup, $rest) = split '_', $_;
-                    if (defined $carbons{$lookup}) { 
+                    if (defined $carbons{$lookup} and $carbons{$lookup} != 0) { 
                         $consumption_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
                     } elsif ($lookup =~ /CO/) {
+                        $consumption_rates{'C1'} += $rate(1:$NTIME-2);
+                    } elsif ($lookup =~ /ROR/) {
                         $consumption_rates{'C1'} += $rate(1:$NTIME-2);
                     } else {
                         print "nothing found for $lookup\n";
@@ -212,8 +216,10 @@ sub get_data {
             foreach (@$reactants) {
                 if ($_ =~ /_/) {
                     my ($lookup, $rest) = split '_', $_;
-                    if (defined $carbons{$lookup}) {
+                    if (defined $carbons{$lookup} and $carbons{$lookup} != 0) {
                         $production_rates{"C$carbons{$lookup}"} += $rate(1:$NTIME-2);
+                    } elsif ($lookup =~ /ROR/) {
+                        $production_rates{'C1'} += $rate(1:$NTIME-2);
                     } else {
                         print "$mechanism => nothing found for $lookup\n";
                     }
