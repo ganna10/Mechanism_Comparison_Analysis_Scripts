@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during propane, octane and propene degradation in each mechanism
 # Version 0: Jane Coates 13/2/2015
+# Version 1: Jane Coates 10/3/2015 Plotting only octane and using all reactions not just Ox producing ones
 
 use strict;
 use diagnostics;
@@ -20,23 +21,19 @@ my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 #my @mechanisms = ( "RACM2", "CB05" );
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-my (%n_carbon, %families, %weights, %data);
+my (%n_carbon, %data);
 
 foreach my $mechanism (@mechanisms) {
     my $boxmodel = "$base/${mechanism}_tagged/boxmodel";
     my $mecca = MECCA->new($boxmodel); 
     my $eqnfile = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqnfile);
-    my $ro2file = "$base/${mechanism}_tagged/RO2_species.txt";
-    my @no2_reservoirs = get_no2_reservoirs($kpp, $ro2file);
     my $carbon_file = "$base/${mechanism}_tagged/carbons.txt";
-    $families{"Ox_$mechanism"} = [ qw(O3 O O1D NO2 HO2NO2 NO3 N2O5), @no2_reservoirs ];
-    $weights{"Ox_$mechanism"} = { NO3 => 2, N2O5 => 3 };
-    $n_carbon{"Ox_$mechanism"} = get_carbons($mechanism, $carbon_file);
-    my @VOCs = qw(Propane Octane Propene);
+    $n_carbon{$mechanism} = get_carbons($mechanism, $carbon_file);
+    my @VOCs = qw(Octane);
     foreach my $NMVOC (@VOCs) {
         my $parent = get_mechanism_species($NMVOC, $mechanism);
-        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{"Ox_$mechanism"}, $parent);
+        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{$mechanism}, $parent);
     }
 }
 
@@ -64,7 +61,6 @@ foreach my $run (sort keys %data) {
 #my $p = $R->run(q` print(data) `);
 #print "$p\n";
 
-$R->run(q` plot.data$VOC = factor(plot.data$VOC, levels = c("Propane", "Octane", "Propene")) `);
 $R->run(q` my.colours = c(  "CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#b569b3", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 $R->run(q` plot.data$Mechanism = factor(plot.data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
 
@@ -84,7 +80,7 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(legend.position = c(1, 0)) `,
         q` plot = plot + theme(strip.background = element_blank()) `,
-        q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
+        q` plot = plot + theme(strip.text = element_blank()) `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
@@ -98,59 +94,29 @@ $R->stop();
 sub get_data {
     my ($kpp, $mecca, $mechanism, $carbons, $VOC) = @_;
     my %carbons = %$carbons;
-    $families{"Ox_${mechanism}_${VOC}"} = $families{"Ox_$mechanism"};
-    $families{"HO2x_${mechanism}_$VOC"} = [ qw( HO2 HO2NO2 ) ];
-
-    my ($producers, %carbon_loss_rate);
-    my @families = ("Ox_${mechanism}_$VOC", "HO2x_${mechanism}_$VOC");
-    foreach my $family (@families) {
-        if (exists $families{$family}) { 
-            $kpp->family({ 
-                    name    => $family,
-                    members => $families{$family},
-                    weights => $weights{$family},
-            });
-            $producers = $kpp->producing($family);
-        } else {
-            print "No family found for $family\n";
-        } 
-        die "No producers found for $family\n" if (@$producers == 0);
+    my %carbon_loss_rate;
         
-        for (0..$#$producers) { #get rates for all producing reactions
-            my $reaction = $producers->[$_];
-            my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
-            next unless (defined $parent and $parent eq $VOC);
-            my $reaction_string = $kpp->reaction_string($reaction);
-            $reaction_string =~ s/_(.*?)\b//g;
-            next if ($reaction_string eq "CO + OH = HO2"); 
-            next if (exists $carbon_loss_rate{$reaction_string});
-            my ($net_carbon) = get_total_C($reaction_string, $carbons, $kpp);
-            next if ($net_carbon == 0);
-            my $reaction_number = $kpp->reaction_number($reaction);
-            my $rate = $net_carbon * $mecca->rate($reaction_number); 
-            next if ($rate->sum == 0); # do not include reactions that do not occur 
-            $carbon_loss_rate{$reaction_string} += $rate(1:$NTIME-2);
-        }
+    ##get all reactions and loop over them
+    my $all_reactions = $kpp->all_reactions();
+
+    for (0..$#$all_reactions) { #get rates for all producing reactions
+        my $reaction = $all_reactions->[$_];
+        my ($r_number, $parent) = split /_/, $reaction; #remove tag from reaction number
+        next unless (defined $parent and $parent =~ $VOC);
+        my $reaction_string = $kpp->reaction_string($reaction);
+        $reaction_string =~ s/_(.*?)\b//g;
+        next if ($reaction_string eq "CO + OH = HO2"); 
+        next if (exists $carbon_loss_rate{$reaction_string});
+        my ($net_carbon) = get_total_C($reaction_string, $carbons, $kpp);
+        next if ($net_carbon == 0);
+        my $reaction_number = $kpp->reaction_number($reaction);
+        my $rate = $net_carbon * $mecca->rate($reaction_number); 
+        next if ($rate->sum == 0); # do not include reactions that do not occur 
+        $carbon_loss_rate{$reaction_string} += $rate(1:$NTIME-2);
     }
 
-    foreach my $reaction (keys %carbon_loss_rate) {
-        if ($VOC =~ /HC3/) {
-            if ($mechanism eq "RACM2") {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 3 / 3.6;
-            } elsif ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 3 / 2.9;
-            }
-        } elsif ($VOC =~ /HC8|BIGALK/) {
-            if ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 8 / 7.9;
-            } elsif ($mechanism =~ /MOZ/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 8 / 5;
-            }
-        } else { #propene
-            if ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 3 / 3.8;
-            }
-        }
+    if ($mechanism =~ /MOZ/) {
+        $carbon_loss_rate{$_} = $carbon_loss_rate{$_} * 0.01 foreach (keys %carbon_loss_rate);
     }
 
     my $overall_carbon_loss_rate = 0;
@@ -165,7 +131,7 @@ sub get_total_C {
     my ($reaction_string, $carbons, $kpp) = @_;
     my ($reactant_c, $product_c, @reactants, @products);
 
-    my @inorganic = qw( hv OH HO2 O3 NO NO2 NO3 H2O HNO3 H2 PAROP O CO2 XO2 XO2N OHOP H2O2 );
+    my @inorganic = qw( hv OH HO2 O3 NO NO2 NO3 H2O HNO3 H2 PAROP O CO2 XO2 XO2N OHOP UNITY CL SO3 SO2 H2O2 O2 HONO NULL );
     my ($reactants, $products) = split / = /, $reaction_string;
     push @reactants, split / \+ /, $reactants;
     push @products, split / \+ /, $products;
@@ -217,27 +183,6 @@ sub get_carbons {
     }
     return $carbons;
 }
-
-sub get_no2_reservoirs { #get species that are produced when radical species react with NO2
-    my ($kpp, $file) = @_; 
-    open my $in, '<:encoding(utf-8)', $file or die $!; 
-    my @ro2;
-    for (<$in>) {
-        push @ro2, split /\s+/, $_; 
-    }
-    close $in;
-    my @no2_reservoirs;
-    foreach my $ro2 (@ro2) {
-        my ($reactions) = $kpp->reacting_with($ro2, 'NO2');
-        foreach my $reaction (@$reactions) {
-            my ($products) = $kpp->products($reaction);
-            if (@$products == 1) {
-                push @no2_reservoirs, $products->[0];
-            }   
-        }   
-    }   
-    return @no2_reservoirs;
-} 
 
 sub mcm_n_carbon {
     my ($file) = @_;
