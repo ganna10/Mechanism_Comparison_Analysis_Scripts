@@ -60,6 +60,11 @@ foreach my $mechanism (keys %data) {
     );
 }
 
+$R->run(q` print.mechanisms = c("RADM2", "MCMv3.2") `);
+$R->run(q` print.data = filter(data, Mechanism %in% print.mechanisms) `);
+my $p = $R->run(q` print(print.data) `);
+print $p, "\n";
+
 $R->run(q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "RADM2", "RACM", "RACM2", "MOZART-4", "CBM-IV", "CB05")) `,
         q` VOC.levels = c(  "CO ", "Methane ", "Ethane ", "Propane ", "2-Methylpropane ", "Butane ", "Pentane ", "2-Methylbutane ", "Hexane ", "Ethene ", "Propene ", "2-Methylpropene ", "Isoprene ", "Toluene ", "m-Xylene ", "o-Xylene ", "p-Xylene ", "Others" ) `, 
         q` my.colours = c(  "Others" = "#696537", 

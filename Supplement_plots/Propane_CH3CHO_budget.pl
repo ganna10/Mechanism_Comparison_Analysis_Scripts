@@ -42,13 +42,17 @@ $R->set('Time', [ ("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"
 $R->run(q` data = data.frame() `);
 foreach my $mechanism (sort keys %data) {
     $R->run(q` pre = data.frame(Time) `);
+    print "$mechanism\n";
+    my $sum = 0;
     foreach my $ref (@{$data{$mechanism}}) {
         foreach my $reaction (sort keys %$ref) {
+            $sum += $ref->{$reaction};
             $R->set('reaction', $reaction);
             $R->set('rate', [map { $_ } $ref->{$reaction}->dog]);
             $R->run(q` pre[reaction] = rate `);
         }
     }
+    print "$sum\n";
     $R->set('mechanism', $mechanism);
     $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
             q` pre = gather(pre, Reaction, Rate, -Time, -Mechanism) `,
@@ -143,7 +147,7 @@ sub get_data {
     foreach my $reaction (keys %production_rates) {
         my $reshape = $production_rates{$reaction}->reshape($N_PER_DAY, $N_DAYS);
         my $integrate = $reshape->sumover;
-        $integrate *= 0.559 if ($mechanism =~ /RA/);
+        $integrate *= 0.628 if ($mechanism =~ /RA/);
         if ($integrate->sum < $others) {
             $production_rates{"Others"} += $integrate(0:13:2);
             delete $production_rates{$reaction};
