@@ -1,6 +1,7 @@
 #!/usr/bin/env perl 
 # Ox production budget plots from all tagged mechanisms, lumped species are de-lumped into constituent VOC
 # Version 0: Jane Coates 03/01/2015
+# Version 1: Jane Coates 17/3/2015 printing out to csv files
 
 use strict;
 use diagnostics;
@@ -53,7 +54,9 @@ foreach my $mechanism (keys %data) {
         }
     }
     $R->set('mechanism', $mechanism);
+    $R->set('filename', "${mechanism}_Ox_budget.csv");
     $R->run(q` pre$Mechanism = rep(mechanism, length(Time)) `,
+            q` write.csv(pre, file = filename, col.names = FALSE, row.names = TRUE) `,
             q` pre = gather(pre, VOC, Rate, -Time, -Mechanism) `,
             q` data = rbind(data, pre) `,
     );

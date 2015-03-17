@@ -50,10 +50,19 @@ $R->run(q` data = gather(data, Mechanism, Mixing.Ratio, -Time) `);
 $R->run(q` my.colours = c("CB05" = "#0352cb", "CBM-IV" = "#b569b3", "CRIv2" = "#ef6638", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanism, group = Mechanism)) `,
         q` plot = plot + geom_line() `,
+        q` plot = plot + xlab("Time (days)") `,
+        q` plot = plot + ylab("Mixing Ratio (ppbv)") `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
+        q` plot = plot + theme_bw() `,
+        q` plot = plot + theme(legend.title = element_blank()) `,
+        q` plot = plot + theme(legend.key = element_blank()) `,
+        q` plot = plot + theme(axis.title = element_text(face = "bold")) `,
+        q` plot = plot + theme(legend.position = "bottom") `,
+        q` plot = plot + theme(panel.grid = element_blank()) `,
+        q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
 );
 
-$R->run(q` CairoPDF(file = "OH_mixing_ratios.pdf") `,
+$R->run(q` CairoPDF(file = "OH_mixing_ratios.pdf", width = 8, height = 5.6) `,
         q` print(plot) `,
         q` dev.off() `,
 );

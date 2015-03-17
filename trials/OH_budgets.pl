@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # OH production and loss budgets in all mechanism
 # Version 0: Jane Coates 2/2/2015
+# Version 1: Jane Coates 17/3/2015 including all mechanisms
 
 use strict;
 use diagnostics;
@@ -17,8 +18,8 @@ my $dt = $mecca->dt->at(0);
 my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
-#my @mechanisms = ( "CBM-IV", "CB05" );
-my @mechanisms = ( "MCMv3.2", "CBM-IV", "CB05" );
+#my @mechanisms = ( "CB05" );
+my @mechanisms = qw( MCMv3.2 MCMv3.1 CRIv2 MOZART-4 RADM2 RACM RACM2 CBM-IV CB05 );
 my (%families, %weights, %plot_data);
 
 foreach my $mechanism (@mechanisms) {
@@ -26,12 +27,12 @@ foreach my $mechanism (@mechanisms) {
     my $mecca = MECCA->new($boxmodel);
     my $eqn_file = "$base/${mechanism}_tagged/gas.eqn";
     my $kpp = KPP->new($eqn_file);
-    #$families{"HOx"} = [ qw( OH )];
-    $families{"HO2x"} = [ qw( HO2 HO2NO2 ) ];
+    $families{"HOx"} = [ qw( OH )];
+    #$families{"HO2x"} = [ qw( HO2 HO2NO2 ) ];
     $kpp->family({
-            name    => "HO2x",
-            members => $families{"HO2x"},
-            weights => $weights{"HO2x"},
+            name    => "HOx",
+            members => $families{"HOx"},
+            weights => $weights{"HOx"},
     });
 
     my (%production, %consumption);
@@ -153,7 +154,9 @@ foreach my $mechanism (sort keys %plot_data) {
         }
     }
     $R->set('mechanism', $mechanism);
+    $R->set('filename', "${mechanism}_OH_budget.csv");
     $R->run(q` pre$Mechanism = rep(mechanism, rep(length(Time))) `,
+            q` write.csv(pre, file = filename, col.names = FALSE, row.names = TRUE) `,
             q` pre = gather(pre, Reaction, Rate, -Time, -Mechanism) `,
             q` data = rbind(data, pre) `,
     );
@@ -176,7 +179,7 @@ $R->run(q` my.colours = c(  "Production Others" = "#696537",
                             "Isoprene" = "#86b650",
                             "Propane" = "#cc6329" ) `); 
 $R->run(#q` data$Reaction = factor(data$Reaction, levels = c("Production Others", "Ethene", "Isoprene", "Methane", "HONO + hv = NO + OH", "O1D = OH + OH", "NO2 + OH = HNO3", "NO + OH = HONO", "HO2 + HO2 = H2O2", "HO2 + OH = UNITY", "Consumption Others")) `,
-        q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "CBM-IV", "CB05")) `,
+    #q` data$Mechanism = factor(data$Mechanism, levels = c("MCMv3.2", "CBM-IV", "CB05")) `,
 );
 
 $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
@@ -193,7 +196,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Rate, fill = Reaction)) `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + scale_fill_manual(values = my.colours) `,
+        #q` plot = plot + scale_fill_manual(values = my.colours) `,
 );
 
 $R->run(q` CairoPDF(file = "OH_budgets.pdf", width = 8, height = 5.7) `,
