@@ -4,7 +4,7 @@ library(ggthemes)
 
 Mechanism = c("MCMv3.2", "MCMv3.1", "MOZART-4", "MOZART-4", "MOZART-4", "MOZART-4", "RADM2", "RADM2", "RACM", "RACM", "RACM", "RACM2", "RACM2", "RACM2", "RACM2", "RACM2")
 Product = c("C5", "C5", "C4", "C3", "C2", "C1", "C4", "C2", "C4", "C2", "C1", "C5", "C4", "C3", "C2", "C1")
-Reactant = c(5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6)
+Reactant = c(5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5.6, 5.6, 5.6, 5.6, 5.6)
 Ratio = c(5, 5, 3, 1.05, 0.8, 0.1, 3.003, 0.912, 3.023, 0.6024, 0.052, 0.039, 0.169, 0.692, 0.276, 0.069)
 data = data.frame(Mechanism, Reactant, Product, Ratio)
 
@@ -15,7 +15,7 @@ my.colours = c("C5" = "#2b9eb3", "C4" = "#ef6638", "C3" = "#0e5628", "C2" = "#f9
 plot = ggplot(data, aes(x = Mechanism, y = Ratio, fill = Product))
 plot = plot + geom_bar(stat = "identity")
 plot = plot + geom_point(aes(y = Reactant), show_guide = FALSE)
-plot = plot + scale_y_continuous(limits = c(0, 6), breaks = seq(0, 6, 1), expand = c(0, 0.05))
+plot = plot + scale_y_continuous(limits = c(0, 6), breaks = seq(0, 6, 1), expand = c(0, 0))
 plot = plot + scale_x_discrete(expand = c(0, 0))
 plot = plot + scale_fill_manual(values = my.colours, guide = guide_legend(direction = "horizontal"), limits = rev(levels(data$Product)))
 plot = plot + ylab("Reactive Carbon")
