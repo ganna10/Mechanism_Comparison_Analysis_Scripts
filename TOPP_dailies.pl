@@ -72,7 +72,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = TOPP, colour = Mechanism, group
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
-        q` plot = plot + theme(legend.position = "top") `,
+        q` plot = plot + theme(legend.position = "bottom") `,
         q` plot = plot + theme(plot.title = element_blank()) `,
         q` plot = plot + theme(plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "line")) `,
         q` plot = plot + theme(legend.margin = unit(0, "lines")) `,
