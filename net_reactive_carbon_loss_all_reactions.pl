@@ -70,7 +70,7 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(expand = c(0, 0.2)) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 3e6)) `,
-        q` plot = plot + ylab("Net Carbon Loss Rate (molecules cm-3 s-1)") `,
+        q` plot = plot + ylab("Rate of Change of Reactive Carbon (molecules cm-3 s-1)") `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
         q` plot = plot + theme(legend.title = element_blank()) `,
