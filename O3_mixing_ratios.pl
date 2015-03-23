@@ -61,7 +61,7 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanis
         q` plot = plot + scale_x_continuous(limits = c(0, 7), breaks = seq(0, 7, 1), expand = c(0, 0)) `,
         q` plot = plot + scale_y_continuous(expand = c(0, 0.5)) `,
         q` plot = plot + xlab("Time (days)") `,
-        q` plot = plot + ylab("Mixing Ratio (ppbv)") `,
+        q` plot = plot + ylab("O3 Mixing Ratio (ppbv)") `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + theme(legend.title = element_blank()) `,
