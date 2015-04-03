@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 # analysis of net rate of reactive carbon loss during pentane and toluene degradation in each mechanism, all reactions not just Ox producing ones
 # Version 0: Jane Coates 27/2/2015
+# Version 1: Jane Coates 2/4/2015 including octane analysis in plot
 
 use strict;
 use diagnostics;
@@ -19,7 +20,7 @@ my $N_PER_DAY = 43200 / $dt;
 my $N_DAYS = int $NTIME / $N_PER_DAY;
 
 my @mechanisms = ( "MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2",  "CBM-IV", "CB05" );
-#my @mechanisms = qw( RADM2 );
+#my @mechanisms = qw( MOZART-4 );
 my (%n_carbon, %data);
 
 foreach my $mechanism (@mechanisms) {
@@ -29,10 +30,9 @@ foreach my $mechanism (@mechanisms) {
     my $kpp = KPP->new($eqnfile);
     my $carbon_file = "$base/${mechanism}_tagged/carbons.txt";
     $n_carbon{$mechanism} = get_carbons($mechanism, $carbon_file);
-    my @VOCs = qw( Pentane Toluene );
-    foreach my $NMVOC (@VOCs) {
-        my $parent = get_mechanism_species($NMVOC, $mechanism);
-        ($data{$mechanism}{$NMVOC}) = get_data($kpp, $mecca, $mechanism, $n_carbon{$mechanism}, $parent);
+    my @species = get_species($mechanism);
+    foreach my $species (@species) {
+        ($data{$mechanism}{$species}) = get_data($kpp, $mecca, $mechanism, $n_carbon{$mechanism}, $species);
     }
 }
 
@@ -40,16 +40,46 @@ my $R = Statistics::R->new();
 $R->run(q` library(ggplot2) `,
         q` library(tidyr) `,
         q` library(Cairo) `,
+        q` library(scales) `,
 );
 
 $R->set('Time', [("Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7")]);
 $R->run(q` plot.data = data.frame() `);
-foreach my $run (sort keys %data) {
+
+my %final_data;
+foreach my $mechanism (sort keys %data) {
+    foreach my $species (sort keys %{$data{$mechanism}}) {
+        if ($species =~ /NC5/) {
+            $final_data{$mechanism}{"Pentane"} = $data{$mechanism}{$species};
+        } elsif ($species eq "HC5") {
+            $final_data{$mechanism}{"Pentane"} = $data{$mechanism}{$species} * 0.264;
+        } elsif ($species =~ /NC8/) {
+            $final_data{$mechanism}{"Octane"} = $data{$mechanism}{$species};
+        } elsif ($species eq "HC8") {
+            $final_data{$mechanism}{"Octane"} = $data{$mechanism}{$species};
+        } elsif ($species eq "BIGALK") {
+            $final_data{$mechanism}{"Pentane"} = $data{$mechanism}{$species} * 0.146;
+            $final_data{$mechanism}{"Octane"} = $data{$mechanism}{$species} * 0.01;
+        } elsif ($mechanism eq "RACM2" and $species eq "TOL") {
+            $final_data{$mechanism}{"Toluene"} = $data{$mechanism}{$species} * 0.868;
+        } elsif ($mechanism =~ /RA/ and $species eq "TOL") {
+            $final_data{$mechanism}{"Toluene"} = $data{$mechanism}{$species} * 0.667;
+        } elsif ($mechanism eq "MOZART-4" and $species =~ "TOL") {
+            $final_data{$mechanism}{"Toluene"} = $data{$mechanism}{$species} * 0.478;
+        } elsif ($species eq "TOLUENE") {
+            $final_data{$mechanism}{"Toluene"} = $data{$mechanism}{$species};
+        } 
+    }
+}
+
+foreach my $run (sort keys %final_data) {
     $R->set('mechanism', $run);
     $R->run(q` data = data.frame(Time) `);
-    foreach my $VOC (sort keys %{$data{$run}}) {
+    #print "$run\n";
+    foreach my $VOC (sort keys %{$final_data{$run}}) {
+        #print "\t$VOC: $final_data{$run}{$VOC}\n";
         $R->set('voc', $VOC);
-        $R->set('rate', [map { $_ } $data{$run}{$VOC}->dog]);
+        $R->set('rate', [map { $_ } $final_data{$run}{$VOC}->dog]);
         $R->run(q` data[voc] = rate `);
     }
     $R->run(q` data$Mechanism = rep(mechanism, length(data$Time)) `,
@@ -62,14 +92,15 @@ foreach my $run (sort keys %data) {
 
 $R->run(q` my.colours = c(  "CB05" = "#0352cb", "CBM-IV" = "#ef6638", "CRIv2" = "#b569b3", "MCMv3.1" = "#000000", "MCMv3.2" = "#dc3522", "MOZART-4" = "#cc9900", "RACM" = "#6c254f", "RACM2" = "#4682b4", "RADM2" = "#035c28") `);
 $R->run(q` plot.data$Mechanism = factor(plot.data$Mechanism, levels = c("MCMv3.2", "MCMv3.1", "CRIv2", "MOZART-4", "RADM2", "RACM", "RACM2", "CBM-IV", "CB05")) `);
+$R->run(q` plot.data$VOC = factor(plot.data$VOC, levels = c("Pentane", "Octane", "Toluene")) `);
 
 $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mechanism, group = Mechanism)) `,
         q` plot = plot + geom_line() `,
         q` plot = plot + geom_point() `,
-        q` plot = plot + facet_wrap( ~ VOC) `,
+        q` plot = plot + facet_wrap( ~ VOC, scales = "free_y") `,
         q` plot = plot + theme_bw() `,
         q` plot = plot + scale_x_discrete(expand = c(0, 0.2)) `,
-        q` plot = plot + scale_y_continuous(expand = c(0, 3e6)) `,
+        q` plot = plot + scale_y_continuous(label = scientific_format() ) `,
         q` plot = plot + ylab("Rate of Change of Reactive Carbon (molecules cm-3 s-1)") `,
         q` plot = plot + theme(panel.grid = element_blank()) `,
         q` plot = plot + theme(legend.key = element_blank()) `,
@@ -77,15 +108,14 @@ $R->run(q` plot = ggplot(data = plot.data, aes(x = Time, y = Rate, colour = Mech
         q` plot = plot + theme(axis.title.y = element_text(face = "bold")) `,
         q` plot = plot + theme(axis.title.x = element_blank()) `,
         q` plot = plot + theme(axis.text.x = element_text(angle = 45, face = "bold", vjust = 0.5)) `,
-        q` plot = plot + theme(legend.justification = c(1, 0)) `,
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
-        q` plot = plot + theme(legend.position = c(1, 0)) `,
+        q` plot = plot + theme(legend.position = "top") `,
         q` plot = plot + theme(strip.background = element_blank()) `,
         q` plot = plot + theme(strip.text = element_text(face = "bold")) `,
         q` plot = plot + scale_colour_manual(values = my.colours) `,
 );
 
-$R->run(q` CairoPDF(file = "net_reactive_carbon_loss_pentane_toluene.pdf", width = 7.5, height = 5.3) `,
+$R->run(q` CairoPDF(file = "net_reactive_carbon_loss_pentane_toluene_octane.pdf", width = 8, height = 5.7) `,
         q` print(plot) `,
         q` dev.off() `,
 );
@@ -96,9 +126,7 @@ sub get_data {
     my ($kpp, $mecca, $mechanism, $carbons, $VOC) = @_;
     my %carbons = %$carbons;
     my %carbon_loss_rate;
-        
-    ##get all reactions and loop over them
-    my $all_reactions = $kpp->all_reactions();
+    my $all_reactions = $kpp->all_reactions(); #get all reactions and loop over them
 
     for (0..$#$all_reactions) { #get rates for all producing reactions
         my $reaction = $all_reactions->[$_];
@@ -115,25 +143,6 @@ sub get_data {
         next if ($rate->sum == 0); # do not include reactions that do not occur 
         $carbon_loss_rate{$reaction_string} += $rate(1:$NTIME-2);
     }
-
-    foreach my $reaction (keys %carbon_loss_rate) {
-        if ($VOC =~ /TOL/) {
-            if ($mechanism eq "RACM2") {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.868;
-            } elsif ($mechanism =~ /RA/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.667;
-            } elsif ($mechanism =~ /MO/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.478;
-            }
-        } else { #pentane
-            if ($mechanism =~ /RA/){
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.264;
-            } elsif ($mechanism =~ /MO/) {
-                $carbon_loss_rate{$reaction} = $carbon_loss_rate{$reaction} * 0.146;
-            }
-        }
-    }
-
     my $overall_carbon_loss_rate = 0;
     $overall_carbon_loss_rate += $carbon_loss_rate{$_} foreach (keys %carbon_loss_rate);
     $overall_carbon_loss_rate = $overall_carbon_loss_rate->reshape($N_PER_DAY, $N_DAYS);
@@ -297,30 +306,16 @@ sub carbons_others { #get C-number from file names that have species and C# sepa
     return \%carbons;
 }
 
-sub get_mechanism_species {
-    my ($NMVOC, $run) = @_;
+sub get_species {
+    my ($mechanism) = @_;
 
-    my $mechanism_species;
-    if ($NMVOC eq "Pentane") {
-        if ($run =~ /MCM|CRI|CB/) {
-            $mechanism_species = "NC5H12";
-        } elsif ($run =~ /MOZART/) {
-            $mechanism_species = "BIGALK";
-        } elsif ($run =~ /RADM|RACM/) {
-            $mechanism_species = "HC5";
-        } else {
-            print "No mechanism species found for $NMVOC\n";
-        }
-    } elsif ($NMVOC eq "Toluene") {
-        if ($run =~ /MCM|CRI|MOZART|CB/) {
-            $mechanism_species = "TOLUENE";
-        } elsif ($run =~ /RADM|RACM/) {
-            $mechanism_species = "TOL";
-        } else {
-            print "No mechanism species found for $NMVOC\n";
-        }
-    } else {
-        print "No $NMVOC data\n";
+    my @species;
+    if ($mechanism =~ /MCM|CRI|CB/) {
+        @species = qw( NC5H12 NC8H18 TOLUENE );
+    } elsif ($mechanism =~ /RA/) {
+        @species = qw( HC5 HC8 TOL );
+    } elsif ($mechanism =~ /MOZ/) {
+        @species = qw( BIGALK TOLUENE);
     }
-    return $mechanism_species;
+    return @species;
 }
