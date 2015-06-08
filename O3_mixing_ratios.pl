@@ -73,24 +73,25 @@ $R->run(q` plot = ggplot(data, aes(x = Time, y = Mixing.Ratio, colour = Mechanis
         q` plot = plot + theme(panel.border = element_rect(colour = "black")) `,
 );
 
-$R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.0, height = 5.6) `,
-        q` print(plot) `,
-        q` dev.off() `,
-);
+#$R->run(q` CairoPDF(file = "O3_mixing_ratios.pdf", width = 8.0, height = 5.6) `,
+#        q` print(plot) `,
+#        q` dev.off() `,
+#);
 
 $R->stop();
 
 #calculate difference on first day between RADM2 and RACM (largest and lowest O3 mixing ratios)
 my $radm2_O3 = $mixing_ratio{"RADM2"}{"O3"};
-my $radm2_O3_day1 = $radm2_O3(0:$n_per_day);
-my $radm2_day1_max = $radm2_O3_day1->max;
+my $day2 = 2 * $n_per_day;
+my $radm2_O3_day2 = $radm2_O3(0:$day2);
+my $radm2_day2_max = $radm2_O3_day2->max;
 
-my $racm_O3 = $mixing_ratio{"RACM"}{"O3"};
-my $racm_O3_day1 = $racm_O3(0:$n_per_day);
-my $racm_day1_max = $racm_O3_day1->max;
-print $radm2_day1_max - $racm_day1_max, "\n";
+my $mcm_O3 = $mixing_ratio{"MCMv3.2"}{"O3"};
+my $mcm_O3_day2 = $mcm_O3(0:$day2);
+my $mcm_day2_max = $mcm_O3_day2->max;
+print "MCM - RADM2 ", $mcm_day2_max - $radm2_day2_max, "\n";
 
 my $racm2_O3 = $mixing_ratio{"RACM2"}{"O3"};
-my $racm2_O3_day1 = $racm2_O3(0:$n_per_day);
-my $racm2_day1_max = $racm2_O3_day1->max;
-print $radm2_day1_max - $racm2_day1_max, "\n";
+my $racm2_O3_day2 = $racm2_O3(0:$day2);
+my $racm2_day2_max = $racm2_O3_day2->max;
+print "MCM - RACM2 ", $mcm_day2_max - $racm2_day2_max, "\n";
