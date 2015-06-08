@@ -85,13 +85,16 @@ my $radm2_O3 = $mixing_ratio{"RADM2"}{"O3"};
 my $day2 = 2 * $n_per_day;
 my $radm2_O3_day2 = $radm2_O3(0:$day2);
 my $radm2_day2_max = $radm2_O3_day2->max;
+print "RADM2: $radm2_day2_max\n";
 
 my $mcm_O3 = $mixing_ratio{"MCMv3.2"}{"O3"};
 my $mcm_O3_day2 = $mcm_O3(0:$day2);
 my $mcm_day2_max = $mcm_O3_day2->max;
+print "MCM v3.2 $mcm_day2_max\n";
 print "MCM - RADM2 ", $mcm_day2_max - $radm2_day2_max, "\n";
 
 my $racm2_O3 = $mixing_ratio{"RACM2"}{"O3"};
 my $racm2_O3_day2 = $racm2_O3(0:$day2);
 my $racm2_day2_max = $racm2_O3_day2->max;
+print "RACM2: $racm2_day2_max\n";
 print "MCM - RACM2 ", $mcm_day2_max - $racm2_day2_max, "\n";
