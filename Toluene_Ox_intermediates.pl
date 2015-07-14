@@ -5,6 +5,7 @@
 # Version 2: Jane Coates 10/11/2014 including HO2x production and updates to script
 # Version 3: Jane Coates 26/12/2014 including all mechanisms in analysis and re-factoring code
 # Version 4: Jane Coates 13/1/2015 correcting emissions of lumped species
+# Version 5: Jane Coates 14/7/2015 increasing legend text size
 
 use strict;
 use diagnostics;
@@ -89,6 +90,8 @@ $R->run(q` plotting = function (data, legend, mechanism) {  plot = ggplot(data, 
                                                             plot = plot + theme(panel.border = element_rect(colour = "black")) ;
                                                             plot = plot + theme(legend.justification = c(1.0, 0.0)) ;
                                                             plot = plot + theme(legend.position = c(1.0, 0.0)) ;
+                                                            plot = plot + theme(legend.key.size = unit(8.5, "mm")) ;
+                                                            plot = plot + theme(legend.text = element_text(size = 18)) ;
                                                             plot = plot + scale_fill_manual(values = my.colours, limits = legend) ;
                                                             return(plot) } `,
 ); 
@@ -116,7 +119,7 @@ foreach my $run (sort keys %plot_data) {
 #my $p = $R->run(q` print(data) `);
 #print $p, "\n";
 
-$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 18.4, height = 26.0) `,
+$R->run(q` CairoPDF(file = "TOL_Ox_intermediates.pdf", width = 18.4, height = 35.0) `,
         q` multiplot = grid.arrange(    arrangeGrob(plots[[5]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()), 
                                                     plots[[4]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
                                                     plots[[3]] + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), axis.text.y = element_blank()),
